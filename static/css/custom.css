@@ -1,0 +1,147 @@
+/* Custom CSS for Python Monitor */
+
+/* Status indicators */
+.status-up {
+    @apply text-green-600 bg-green-100;
+}
+
+.status-down {
+    @apply text-red-600 bg-red-100;
+}
+
+.status-unknown {
+    @apply text-gray-600 bg-gray-100;
+}
+
+/* Animated pulse for live indicators */
+.pulse-green {
+    animation: pulse-green 2s infinite;
+}
+
+.pulse-red {
+    animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-green {
+    0%, 100% {
+        background-color: #10b981;
+        opacity: 1;
+    }
+    50% {
+        background-color: #34d399;
+        opacity: 0.7;
+    }
+}
+
+@keyframes pulse-red {
+    0%, 100% {
+        background-color: #ef4444;
+        opacity: 1;
+    }
+    50% {
+        background-color: #f87171;
+        opacity: 0.7;
+    }
+}
+
+/* Chart container */
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+/* Loading state */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Responsive table */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Flash message animations */
+.alert {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Form improvements */
+.form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Button hover effects */
+.btn-hover {
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-hover:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Card hover effects */
+.card-hover {
+    transition: all 0.2s ease-in-out;
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Status badges */
+.badge-success {
+    @apply bg-green-100 text-green-800;
+}
+
+.badge-danger {
+    @apply bg-red-100 text-red-800;
+}
+
+.badge-warning {
+    @apply bg-yellow-100 text-yellow-800;
+}
+
+.badge-info {
+    @apply bg-blue-100 text-blue-800;
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+    /* Add dark mode styles if needed */
+}

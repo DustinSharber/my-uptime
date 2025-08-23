@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Python Monitor{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <link href="/static/css/custom.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="{{ url_for('main.dashboard') }}" class="flex items-center space-x-2">
+                        <i class="fas fa-heartbeat text-2xl text-blue-600"></i>
+                        <span class="text-xl font-semibold text-gray-900">Python Monitor</span>
+                    </a>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('main.dashboard') }}" 
+                       class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-tachometer-alt mr-1"></i> Dashboard
+                    </a>
+                    <a href="{{ url_for('main.monitors') }}" 
+                       class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-list mr-1"></i> Monitors
+                    </a>
+                    <a href="{{ url_for('main.incidents') }}" 
+                       class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-exclamation-triangle mr-1"></i> Incidents
+                    </a>
+                    <a href="{{ url_for('main.settings') }}" 
+                       class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
+                        <i class="fas fa-cog mr-1"></i> Settings
+                    </a>
+                    <a href="{{ url_for('main.new_monitor') }}" 
+                       class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+                        <i class="fas fa-plus mr-1"></i> Add Monitor
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'info' }} rounded-md p-4 mb-4">
+                        {% if category == 'success' %}
+                            <div class="bg-green-50 border border-green-200 text-green-800">
+                                <i class="fas fa-check-circle mr-2"></i>{{ message }}
+                            </div>
+                        {% elif category == 'error' %}
+                            <div class="bg-red-50 border border-red-200 text-red-800">
+                                <i class="fas fa-exclamation-circle mr-2"></i>{{ message }}
+                            </div>
+                        {% else %}
+                            <div class="bg-blue-50 border border-blue-200 text-blue-800">
+                                <i class="fas fa-info-circle mr-2"></i>{{ message }}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t mt-12">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-gray-500">
+                Python Monitor - Open Source Uptime Monitoring
+            </p>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

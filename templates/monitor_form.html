@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}{% if monitor %}Edit{% else %}New{% endif %} Monitor - Python Monitor{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">
+                <i class="fas fa-{% if monitor %}edit{% else %}plus{% endif %} mr-2"></i>
+                {% if monitor %}Edit Monitor{% else %}Add New Monitor{% endif %}
+            </h2>
+        </div>
+        
+        <form method="POST" class="px-6 py-6 space-y-6">
+            <!-- Basic Information -->
+            <div>
+                <h3 class="text-md font-medium text-gray-900 mb-4">Basic Information</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Monitor Name</label>
+                        <input type="text" id="name" name="name" required
+                               value="{{ monitor.name if monitor else '' }}"
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                        <p class="text-xs text-gray-500 mt-1">Descriptive name for this monitor</p>
+                    </div>
+                    
+                    <div>
+                        <label for="monitor_type" class="block text-sm font-medium text-gray-700">Monitor Type</label>
+                        <select id="monitor_type" name="monitor_type" 
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                            <option value="http" {% if not monitor or monitor.monitor_type == 'http' %}selected{% endif %}>HTTP</option>
+                            <option value="https" {% if monitor and monitor.monitor_type == 'https' %}selected{% endif %}>HTTPS</option>
+                            <option value="ping" {% if monitor and monitor.monitor_type == 'ping' %}selected{% endif %}>Ping</option>
+                            <option value="port" {% if monitor and monitor.monitor_type == 'port' %}selected{% endif %}>Port</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <label for="url" class="block text-sm font-medium text-gray-700">URL</label>
+                    <input type="url" id="url" name="url" required
+                           value="{{ monitor.url if monitor else '' }}"
+                           placeholder="https://example.com"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    <p class="text-xs text-gray-500 mt-1">The URL or endpoint to monitor</p>
+                </div>
+            </div>
+            
+            <!-- HTTP Settings -->
+            <div id="http-settings">
+                <h3 class="text-md font-medium text-gray-900 mb-4">HTTP Settings</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="method" class="block text-sm font-medium text-gray-700">HTTP Method</label>
+                        <select id="method" name="method" 
+                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                            <option value="GET" {% if not monitor or monitor.method == 'GET' %}selected{% endif %}>GET</option>
+                            <option value="POST" {% if monitor and monitor.method == 'POST' %}selected{% endif %}>POST</option>
+                            <option value="PUT" {% if monitor and monitor.method == 'PUT' %}selected{% endif %}>PUT</option>
+                            <option value="HEAD" {% if monitor and monitor.method == 'HEAD' %}selected{% endif %}>HEAD</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="expected_status" class="block text-sm font-medium text-gray-700">Expected Status Code</label>
+                        <input type="number" id="expected_status" name="expected_status"
+                               value="{{ monitor.expected_status if monitor else 200 }}"
+                               min="100" max="599"
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <label for="expected_text" class="block text-sm font-medium text-gray-700">Expected Text (optional)</label>
+                    <input type="text" id="expected_text" name="expected_text"
+                           value="{{ monitor.expected_text if monitor else '' }}"
+                           placeholder="Text that should be present in the response"
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    <p class="text-xs text-gray-500 mt-1">Leave empty to skip text verification</p>
+                </div>
+                
+                <div class="mt-4">
+                    <label for="headers" class="block text-sm font-medium text-gray-700">Custom Headers (JSON format)</label>
+                    <textarea id="headers" name="headers" rows="3"
+                              placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'
+                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.headers if monitor else '' }}</textarea>
+                    <p class="text-xs text-gray-500 mt-1">Optional: JSON object with custom headers</p>
+                </div>
+                
+                <div class="mt-4" id="request-body" style="display: none;">
+                    <label for="body" class="block text-sm font-medium text-gray-700">Request Body</label>
+                    <textarea id="body" name="body" rows="4"
+                              placeholder="Request body for POST/PUT requests"
+                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.body if monitor else '' }}</textarea>
+                </div>
+            </div>
+            
+            <!-- Monitoring Settings -->
+            <div>
+                <h3 class="text-md font-medium text-gray-900 mb-4">Monitoring Settings</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="interval" class="block text-sm font-medium text-gray-700">Check Interval (seconds)</label>
+                        <input type="number" id="interval" name="interval"
+                               value="{{ monitor.interval if monitor else 60 }}"
+                               min="30" max="3600"
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    </div>
+                    
+                    <div>
+                        <label for="timeout" class="block text-sm font-medium text-gray-700">Timeout (seconds)</label>
+                        <input type="number" id="timeout" name="timeout"
+                               value="{{ monitor.timeout if monitor else 30 }}"
+                               min="5" max="120"
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    </div>
+                    
+                    <div>
+                        <label for="retries" class="block text-sm font-medium text-gray-700">Retries</label>
+                        <input type="number" id="retries" name="retries"
+                               value="{{ monitor.retries if monitor else 3 }}"
+                               min="1" max="10"
+                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex items-center justify-between pt-6 border-t border-gray-200">
+                <a href="{{ url_for('main.dashboard') }}" 
+                   class="text-gray-600 hover:text-gray-800">
+                    <i class="fas fa-arrow-left mr-2"></i>Cancel
+                </a>
+                
+                <div class="space-x-3">
+                    {% if monitor %}
+                        <button type="button" onclick="testMonitor()" 
+                                class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
+                            <i class="fas fa-vial mr-2"></i>Test Now
+                        </button>
+                    {% endif %}
+                    <button type="submit" 
+                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-save mr-2"></i>
+                        {% if monitor %}Update{% else %}Create{% endif %} Monitor
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Show/hide request body field based on HTTP method
+document.getElementById('method').addEventListener('change', function() {
+    const bodyDiv = document.getElementById('request-body');
+    if (this.value === 'POST' || this.value === 'PUT') {
+        bodyDiv.style.display = 'block';
+    } else {
+        bodyDiv.style.display = 'none';
+    }
+});
+
+// Show/hide HTTP settings based on monitor type
+document.getElementById('monitor_type').addEventListener('change', function() {
+    const httpSettings = document.getElementById('http-settings');
+    if (this.value === 'http' || this.value === 'https') {
+        httpSettings.style.display = 'block';
+    } else {
+        httpSettings.style.display = 'none';
+    }
+});
+
+// Initialize form
+document.addEventListener('DOMContentLoaded', function() {
+    // Trigger change events to set initial state
+    document.getElementById('method').dispatchEvent(new Event('change'));
+    document.getElementById('monitor_type').dispatchEvent(new Event('change'));
+});
+
+{% if monitor %}
+function testMonitor() {
+    // Implement test functionality
+    alert('Test functionality would be implemented here');
+}
+{% endif %}
+</script>
+{% endblock %}

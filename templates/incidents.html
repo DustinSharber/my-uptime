@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Incidents - Python Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-3xl font-bold text-gray-900">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Incidents
+        </h1>
+    </div>
+
+    <!-- Incidents List -->
+    <div class="bg-white shadow rounded-lg">
+        {% if incidents.items %}
+            <div class="divide-y divide-gray-200">
+                {% for incident in incidents.items %}
+                <div class="p-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <!-- Status Badge -->
+                            {% if incident.is_resolved %}
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                    <i class="fas fa-check-circle mr-1"></i>
+                                    Resolved
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                    <i class="fas fa-exclamation-circle mr-1"></i>
+                                    Ongoing
+                                </span>
+                            {% endif %}
+                            
+                            <!-- Incident Info -->
+                            <div>
+                                <h3 class="text-lg font-medium text-gray-900">
+                                    <a href="{{ url_for('main.monitor_detail', monitor_id=incident.monitor_id) }}" 
+                                       class="hover:text-blue-600">
+                                        {{ incident.monitor.name }}
+                                    </a>
+                                </h3>
+                                <p class="text-sm text-gray-500">{{ incident.monitor.url }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Duration -->
+                        <div class="text-right">
+                            <div class="text-lg font-medium text-gray-900">
+                                {{ incident.duration_formatted }}
+                            </div>
+                            <div class="text-sm text-gray-500">
+                                {{ incident.started_at.strftime('%Y-%m-%d %H:%M') }}
+                                {% if incident.ended_at %}
+                                    - {{ incident.ended_at.strftime('%H:%M') }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error Message -->
+                    {% if incident.error_message %}
+                    <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                        <p class="text-sm text-red-800">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                            {{ incident.error_message }}
+                        </p>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Timeline -->
+                    <div class="mt-4">
+                        <div class="flex items-center text-sm text-gray-600 space-x-4">
+                            <div class="flex items-center">
+                                <i class="fas fa-play-circle mr-1"></i>
+                                <span>Started: {{ incident.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                            </div>
+                            {% if incident.ended_at %}
+                            <div class="flex items-center">
+                                <i class="fas fa-stop-circle mr-1"></i>
+                                <span>Ended: {{ incident.ended_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                            </div>
+                            {% else %}
+                            <div class="flex items-center text-red-600">
+                                <i class="fas fa-clock mr-1"></i>
+                                <span>Ongoing for {{ incident.duration_formatted }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if incidents.pages > 1 %}
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {% if incidents.has_prev %}
+                        <a href="{{ url_for('main.incidents', page=incidents.prev_num) }}" 
+                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Previous
+                        </a>
+                    {% endif %}
+                    {% if incidents.has_next %}
+                        <a href="{{ url_for('main.incidents', page=incidents.next_num) }}" 
+                           class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Next
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            Showing {{ incidents.per_page * (incidents.page - 1) + 1 }} to 
+                            {{ incidents.per_page * (incidents.page - 1) + incidents.items|length }} of 
+                            {{ incidents.total }} results
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                            {% if incidents.has_prev %}
+                                <a href="{{ url_for('main.incidents', page=incidents.prev_num) }}" 
+                                   class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            {% endif %}
+                            
+                            {% for page_num in incidents.iter_pages() %}
+                                {% if page_num %}
+                                    {% if page_num != incidents.page %}
+                                        <a href="{{ url_for('main.incidents', page=page_num) }}" 
+                                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                            {{ page_num }}
+                                        </a>
+                                    {% else %}
+                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-blue-50 text-sm font-medium text-blue-600">
+                                            {{ page_num }}
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                        ...
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if incidents.has_next %}
+                                <a href="{{ url_for('main.incidents', page=incidents.next_num) }}" 
+                                   class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        {% else %}
+            <div class="px-6 py-12 text-center">
+                <i class="fas fa-check-circle text-4xl text-green-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No incidents recorded</h3>
+                <p class="text-gray-500">All your monitors are running smoothly. Incidents will appear here when services go down.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

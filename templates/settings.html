@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Python Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-3xl font-bold text-gray-900">
+            <i class="fas fa-cog mr-2"></i>Settings
+        </h1>
+    </div>
+
+    <!-- Notification Channels -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-medium text-gray-900">
+                    <i class="fas fa-bell mr-2"></i>Notification Channels
+                </h2>
+                <button class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    <i class="fas fa-plus mr-2"></i>Add Channel
+                </button>
+            </div>
+        </div>
+        
+        {% if channels %}
+            <div class="divide-y divide-gray-200">
+                {% for channel in channels %}
+                <div class="px-6 py-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex-shrink-0">
+                            {% if channel.type == 'email' %}
+                                <i class="fas fa-envelope text-2xl text-blue-500"></i>
+                            {% elif channel.type == 'webhook' %}
+                                <i class="fas fa-link text-2xl text-green-500"></i>
+                            {% elif channel.type == 'slack' %}
+                                <i class="fab fa-slack text-2xl text-purple-500"></i>
+                            {% else %}
+                                <i class="fas fa-bell text-2xl text-gray-500"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-900">{{ channel.name }}</h3>
+                            <p class="text-sm text-gray-500">{{ channel.type.title() }} notification</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        {% if channel.is_active %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Active
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Inactive
+                            </span>
+                        {% endif %}
+                        <button class="text-gray-600 hover:text-gray-800">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="text-red-600 hover:text-red-800">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="px-6 py-12 text-center">
+                <i class="fas fa-bell-slash text-4xl text-gray-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No notification channels configured</h3>
+                <p class="text-gray-500 mb-4">Set up email, webhooks, or other notifications to stay informed about incidents.</p>
+                <button class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    <i class="fas fa-plus mr-2"></i>Add Your First Channel
+                </button>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- General Settings -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">
+                <i class="fas fa-sliders-h mr-2"></i>General Settings
+            </h2>
+        </div>
+        <div class="px-6 py-6">
+            <form class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Default Check Interval</label>
+                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                            <option value="30">30 seconds</option>
+                            <option value="60" selected>1 minute</option>
+                            <option value="300">5 minutes</option>
+                            <option value="900">15 minutes</option>
+                            <option value="1800">30 minutes</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Default Timeout</label>
+                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                            <option value="10">10 seconds</option>
+                            <option value="30" selected>30 seconds</option>
+                            <option value="60">60 seconds</option>
+                            <option value="120">2 minutes</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Keep History</label>
+                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                            <option value="7">7 days</option>
+                            <option value="30" selected>30 days</option>
+                            <option value="90">90 days</option>
+                            <option value="365">1 year</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Items per Page</label>
+                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="pt-6 border-t border-gray-200">
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-save mr-2"></i>Save Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- System Info -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">
+                <i class="fas fa-info-circle mr-2"></i>System Information
+            </h2>
+        </div>
+        <div class="px-6 py-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Application</h4>
+                    <div class="space-y-1 text-gray-600">
+                        <div>Version: 1.0.0</div>
+                        <div>Python: 3.x</div>
+                        <div>Flask: 2.x</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Database</h4>
+                    <div class="space-y-1 text-gray-600">
+                        <div>Type: SQLite</div>
+                        <div>Status: <span class="text-green-600">Connected</span></div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Monitoring Service</h4>
+                    <div class="space-y-1 text-gray-600">
+                        <div>Status: <span class="text-green-600">Running</span></div>
+                        <div>Uptime: 1d 2h 30m</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Statistics</h4>
+                    <div class="space-y-1 text-gray-600">
+                        <div>Total Checks: 12,345</div>
+                        <div>Total Incidents: 23</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="bg-white shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-medium text-gray-900">
+                <i class="fas fa-tools mr-2"></i>Maintenance
+            </h2>
+        </div>
+        <div class="px-6 py-6">
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">Clean Up Old Data</h4>
+                        <p class="text-sm text-gray-500">Remove check history older than the retention period</p>
+                    </div>
+                    <button class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
+                        Clean Up Now
+                    </button>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">Export Data</h4>
+                        <p class="text-sm text-gray-500">Download all monitoring data as JSON</p>
+                    </div>
+                    <button class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        Export
+                    </button>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">Reset Database</h4>
+                        <p class="text-sm text-gray-500 text-red-600">⚠️ This will delete all data permanently</p>
+                    </div>
+                    <button class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                            onclick="return confirm('Are you sure? This will delete all data permanently!')">
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
