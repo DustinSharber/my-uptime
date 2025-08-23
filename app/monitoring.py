@@ -4,7 +4,8 @@ import socket
 import logging
 from datetime import datetime, timedelta
 from app import db, create_app
-from app.models import Monitor, MonitorCheck, Incident
+from app.models import Monitor, MonitorCheck, Incident, NotificationChannel
+from app.notifications import notification_service
 from sqlalchemy.orm import scoped_session, sessionmaker
 from threading import Thread
 import schedule
@@ -226,7 +227,8 @@ class MonitoringService:
                 self.session.add(incident)
                 logger.warning(f'New incident created for monitor: {monitor.name}')
                 
-                # TODO: Send notification
+                # Send notifications for new incident
+                self.send_notifications('incident_started', monitor, incident)
                 
         else:  # Monitor is up
             if latest_incident:
@@ -236,7 +238,8 @@ class MonitoringService:
                 latest_incident.is_resolved = True
                 logger.info(f'Incident resolved for monitor: {monitor.name} (Duration: {latest_incident.duration_formatted})')
                 
-                # TODO: Send resolution notification
+                # Send notifications for incident resolution
+                self.send_notifications('incident_resolved', monitor, latest_incident)
     
     def run_checks(self):
         """Run checks for all active monitors that are due for checking."""
@@ -267,6 +270,45 @@ class MonitoringService:
         
         except Exception as e:
             logger.error(f'Error in run_checks: {str(e)}')
+    
+    def send_notifications(self, incident_type: str, monitor: Monitor, incident: Incident = None):
+        """Send notifications through all active channels."""
+        try:
+            # Get active notification channels
+            channels = self.session.query(NotificationChannel).filter_by(is_active=True).all()
+            
+            if not channels:
+                logger.debug('No active notification channels configured')
+                return
+            
+            for channel in channels:
+                try:
+                    # Parse channel configuration
+                    config = json.loads(channel.config) if channel.config else {}
+                    
+                    # Prepare channel data for notification service
+                    channel_data = {
+                        'id': channel.id,
+                        'name': channel.name,
+                        'type': channel.type,
+                        'config': channel.config
+                    }
+                    
+                    # Send notification
+                    success = notification_service.send_notification(
+                        channel_data, incident_type, monitor, incident
+                    )
+                    
+                    if success:
+                        logger.info(f'Notification sent successfully via {channel.type} channel: {channel.name}')
+                    else:
+                        logger.error(f'Failed to send notification via {channel.type} channel: {channel.name}')
+                        
+                except Exception as e:
+                    logger.error(f'Error sending notification via channel {channel.name}: {str(e)}')
+        
+        except Exception as e:
+            logger.error(f'Error in send_notifications: {str(e)}')
     
     def cleanup_old_data(self):
         """Clean up old check data and resolved incidents."""
