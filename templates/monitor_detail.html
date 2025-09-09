@@ -7,18 +7,23 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div class="flex items-center space-x-4">
-            <a href="{{ url_for('main.dashboard') }}" class="text-gray-600 hover:text-gray-800">
+            <a href="{{ url_for('main.dashboard') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
                 <i class="fas fa-arrow-left"></i>
             </a>
             <div class="flex items-center space-x-3">
-                {% if monitor.status == 'up' %}
+                {% if monitor.in_maintenance %}
+                    <div class="w-4 h-4 bg-blue-500 rounded-full" title="In Maintenance"></div>
+                {% elif monitor.status == 'up' %}
                     <div class="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div>
                 {% elif monitor.status == 'down' %}
                     <div class="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
                 {% else %}
                     <div class="w-4 h-4 bg-gray-400 rounded-full"></div>
                 {% endif %}
-                <h1 class="text-3xl font-bold text-gray-900">{{ monitor.name }}</h1>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ monitor.name }}</h1>
+                {% if monitor.in_maintenance %}
+                    <span class="text-sm font-medium text-blue-500">(In Maintenance)</span>
+                {% endif %}
             </div>
         </div>
         
@@ -42,36 +47,36 @@
     </div>
 
     <!-- Monitor Info -->
-    <div class="bg-white shadow rounded-lg">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
         <div class="px-6 py-4">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">URL</h3>
-                    <p class="text-sm text-gray-900 break-all">{{ monitor.url }}</p>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">URL</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 break-all">{{ monitor.url }}</p>
                 </div>
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Type</h3>
-                    <p class="text-sm text-gray-900">{{ monitor.monitor_type.upper() }}</p>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Type</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100">{{ monitor.monitor_type.upper() }}</p>
                 </div>
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Method</h3>
-                    <p class="text-sm text-gray-900">{{ monitor.method }}</p>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Method</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100">{{ monitor.method }}</p>
                 </div>
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Interval</h3>
-                    <p class="text-sm text-gray-900">{{ monitor.interval }}s</p>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Interval</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100">{{ monitor.interval }}s</p>
                 </div>
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Timeout</h3>
-                    <p class="text-sm text-gray-900">{{ monitor.timeout }}s</p>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Timeout</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100">{{ monitor.timeout }}s</p>
                 </div>
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Expected Status</h3>
-                    <p class="text-sm text-gray-900">{{ monitor.expected_status }}</p>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Expected Status</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100">{{ monitor.expected_status }}</p>
                 </div>
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Response Time</h3>
-                    <p class="text-sm text-gray-900">
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Response Time</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100">
                         {% if monitor.response_time %}
                             {{ "%.0f"|format(monitor.response_time) }}ms
                         {% else %}
@@ -80,8 +85,8 @@
                     </p>
                 </div>
                 <div>
-                    <h3 class="text-sm font-medium text-gray-500">Uptime (7d)</h3>
-                    <p class="text-sm text-gray-900">{{ "%.1f"|format(monitor.uptime_percentage) }}%</p>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Uptime (7d)</h3>
+                    <p class="text-sm text-gray-900 dark:text-gray-100">{{ "%.1f"|format(monitor.uptime_percentage) }}%</p>
                 </div>
             </div>
         </div>
@@ -89,7 +94,7 @@
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
             <div class="p-5">
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
@@ -97,8 +102,8 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Avg Response Time</dt>
-                            <dd class="text-lg font-medium text-gray-900">
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Avg Response Time</dt>
+                            <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">
                                 {% set avg_response = checks|selectattr('is_up')|selectattr('response_time')|map(attribute='response_time')|list %}
                                 {% if avg_response %}
                                     {{ "%.0f"|format(avg_response|sum / avg_response|length) }}ms
@@ -112,7 +117,7 @@
             </div>
         </div>
 
-        <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
             <div class="p-5">
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
@@ -120,7 +125,7 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Successful Checks</dt>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Successful Checks</dt>
                             <dd class="text-lg font-medium text-green-600">
                                 {{ checks|selectattr('is_up')|list|length }}
                             </dd>
@@ -130,7 +135,7 @@
             </div>
         </div>
 
-        <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
             <div class="p-5">
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
@@ -138,7 +143,7 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Failed Checks</dt>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Failed Checks</dt>
                             <dd class="text-lg font-medium text-red-600">
                                 {{ checks|rejectattr('is_up')|list|length }}
                             </dd>
@@ -148,7 +153,7 @@
             </div>
         </div>
 
-        <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
             <div class="p-5">
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
@@ -156,8 +161,8 @@
                     </div>
                     <div class="ml-5 w-0 flex-1">
                         <dl>
-                            <dt class="text-sm font-medium text-gray-500 truncate">Total Checks</dt>
-                            <dd class="text-lg font-medium text-gray-900">{{ checks|length }}</dd>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Total Checks</dt>
+                            <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ checks|length }}</dd>
                         </dl>
                     </div>
                 </div>
@@ -166,17 +171,17 @@
     </div>
 
     <!-- Time Range Selector -->
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-900">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                     <i class="fas fa-chart-line mr-2"></i>Response Time History
                 </h2>
                 <div class="space-x-2">
-                    <a href="?hours=1" class="px-3 py-1 text-sm rounded {% if hours == 1 %}bg-blue-100 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">1h</a>
-                    <a href="?hours=6" class="px-3 py-1 text-sm rounded {% if hours == 6 %}bg-blue-100 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">6h</a>
-                    <a href="?hours=24" class="px-3 py-1 text-sm rounded {% if hours == 24 %}bg-blue-100 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">24h</a>
-                    <a href="?hours=168" class="px-3 py-1 text-sm rounded {% if hours == 168 %}bg-blue-100 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">7d</a>
+                    <a href="?hours=1" class="px-3 py-1 text-sm rounded {% if hours == 1 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">1h</a>
+                    <a href="?hours=6" class="px-3 py-1 text-sm rounded {% if hours == 6 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">6h</a>
+                    <a href="?hours=24" class="px-3 py-1 text-sm rounded {% if hours == 24 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">24h</a>
+                    <a href="?hours=168" class="px-3 py-1 text-sm rounded {% if hours == 168 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">7d</a>
                 </div>
             </div>
         </div>
@@ -186,30 +191,34 @@
     </div>
 
     <!-- Recent Checks -->
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-medium text-gray-900">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                 <i class="fas fa-history mr-2"></i>Recent Checks
             </h2>
         </div>
         
         {% if checks %}
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Response Time</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status Code</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Response Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status Code</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Error</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {% for check in checks[:20] %}
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                {% if check.is_up %}
+                                {% if monitor.in_maintenance %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        <i class="fas fa-wrench mr-1"></i>MAINT
+                                    </span>
+                                {% elif check.is_up %}
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                         <i class="fas fa-check-circle mr-1"></i>UP
                                     </span>
@@ -219,17 +228,17 @@
                                     </span>
                                 {% endif %}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                                 {% if check.response_time %}
                                     {{ "%.0f"|format(check.response_time) }}ms
                                 {% else %}
                                     -
                                 {% endif %}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                                 {{ check.status_code or '-' }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                 {{ check.checked_at.strftime('%Y-%m-%d %H:%M:%S') }}
                             </td>
                             <td class="px-6 py-4 text-sm text-red-600">
@@ -257,13 +266,13 @@
 
     <!-- Incidents -->
     {% if incidents %}
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-medium text-gray-900">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                 <i class="fas fa-exclamation-triangle mr-2"></i>Recent Incidents
             </h2>
         </div>
-        <div class="divide-y divide-gray-200">
+        <div class="divide-y divide-gray-200 dark:divide-gray-700">
             {% for incident in incidents %}
             <div class="px-6 py-4">
                 <div class="flex items-center justify-between">
@@ -278,14 +287,14 @@
                                     Ongoing
                                 </span>
                             {% endif %}
-                            <span class="text-sm text-gray-900">{{ incident.started_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            <span class="text-sm text-gray-900 dark:text-gray-100">{{ incident.started_at.strftime('%Y-%m-%d %H:%M') }}</span>
                         </div>
-                        <p class="text-sm text-gray-500 mt-1">{{ incident.error_message or 'Service unavailable' }}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ incident.error_message or 'Service unavailable' }}</p>
                     </div>
                     <div class="text-right text-sm">
-                        <div class="font-medium text-gray-900">{{ incident.duration_formatted }}</div>
+                        <div class="font-medium text-gray-900 dark:text-gray-100">{{ incident.duration_formatted }}</div>
                         {% if incident.ended_at %}
-                            <div class="text-gray-500">{{ incident.ended_at.strftime('%H:%M') }}</div>
+                            <div class="text-gray-500 dark:text-gray-400">{{ incident.ended_at.strftime('%H:%M') }}</div>
                         {% endif %}
                     </div>
                 </div>
@@ -294,14 +303,140 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- System Metrics -->
+    {% if monitor.server_client %}
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg" id="metrics">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    <i class="fas fa-microchip mr-2"></i>System Metrics
+                </h2>
+                <div class="space-x-2">
+                    <a href="?hours=1#metrics" class="px-3 py-1 text-sm rounded {% if hours == 1 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">1h</a>
+                    <a href="?hours=6#metrics" class="px-3 py-1 text-sm rounded {% if hours == 6 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">6h</a>
+                    <a href="?hours=24#metrics" class="px-3 py-1 text-sm rounded {% if hours == 24 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">24h</a>
+                </div>
+            </div>
+        </div>
+        <div class="p-6 space-y-6">
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">CPU Usage</h3>
+                <canvas id="cpuChart" height="100"></canvas>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">RAM Usage</h3>
+                <canvas id="ramChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>
+// Load system metrics data
+{% if monitor.server_client %}
+const systemMetrics = {{ system_metrics_json|safe }};
+const metricsData = systemMetrics.reverse(); // Chronological order
+
+// CPU Chart
+const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+new Chart(cpuCtx, {
+    type: 'line',
+    data: {
+        datasets: [{
+            label: 'CPU Usage (%)',
+            data: metricsData.map(metric => ({
+                x: new Date(metric.timestamp),
+                y: metric.cpu_percent
+            })),
+            borderColor: 'rgb(234, 88, 12)',
+            backgroundColor: 'rgba(234, 88, 12, 0.1)',
+            fill: true,
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            x: {
+                type: 'time',
+                time: {
+                    displayFormats: {
+                        hour: 'HH:mm',
+                        day: 'MMM DD'
+                    }
+                }
+            },
+            y: {
+                beginAtZero: true,
+                max: 100,
+                title: {
+                    display: true,
+                    text: 'CPU Usage (%)'
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+
+// RAM Chart
+const ramCtx = document.getElementById('ramChart').getContext('2d');
+new Chart(ramCtx, {
+    type: 'line',
+    data: {
+        datasets: [{
+            label: 'RAM Usage (%)',
+            data: metricsData.map(metric => ({
+                x: new Date(metric.timestamp),
+                y: metric.ram_percent
+            })),
+            borderColor: 'rgb(147, 51, 234)',
+            backgroundColor: 'rgba(147, 51, 234, 0.1)',
+            fill: true,
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            x: {
+                type: 'time',
+                time: {
+                    displayFormats: {
+                        hour: 'HH:mm',
+                        day: 'MMM DD'
+                    }
+                }
+            },
+            y: {
+                beginAtZero: true,
+                max: 100,
+                title: {
+                    display: true,
+                    text: 'RAM Usage (%)'
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+{% endif %}
+
 // Response time chart
 const ctx = document.getElementById('responseTimeChart').getContext('2d');
-const checks = {{ checks|tojson }};
+const chartChecks = JSON.parse('{{ chart_checks_json|safe }}');
 
-const chartData = checks.reverse().map(check => ({
+const chartData = chartChecks.map(check => ({
     x: new Date(check.checked_at),
     y: check.is_up ? (check.response_time || 0) : null
 }));

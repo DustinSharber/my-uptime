@@ -38,8 +38,8 @@ function stopAutoRefresh() {
 }
 
 function refreshPage() {
-    // Only refresh if the page is visible
-    if (!document.hidden) {
+    // Only refresh if the page is visible and not the settings page
+    if (!document.hidden && window.location.pathname !== '/settings') {
         window.location.reload();
     }
 }

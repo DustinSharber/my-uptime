@@ -1,12 +1,16 @@
 import requests
 import time
+import os
+import subprocess
 import socket
+import ssl
 import logging
 from datetime import datetime, timedelta
-from app import db, create_app
-from app.models import Monitor, MonitorCheck, Incident, NotificationChannel
+import pytz
+from app import create_app
+from app.database import db
+from app.models import Monitor, MonitorCheck, Incident, NotificationChannel, Maintenance
 from app.notifications import notification_service
-from sqlalchemy.orm import scoped_session, sessionmaker
 from threading import Thread
 import schedule
 import json
@@ -28,15 +32,6 @@ class MonitoringService:
     
     def __init__(self, app=None):
         self.app = app or create_app()
-        self.session = None
-        self.setup_database_session()
-        
-    def setup_database_session(self):
-        """Setup database session for background thread."""
-        with self.app.app_context():
-            engine = db.get_engine()
-            session_factory = sessionmaker(bind=engine)
-            self.session = scoped_session(session_factory)
     
     def check_monitor(self, monitor):
         """Check a single monitor and return the result."""
@@ -47,7 +42,8 @@ class MonitoringService:
             'status_code': None,
             'error_message': None,
             'response_text': None,
-            'checked_at': datetime.utcnow()
+            'checked_at': datetime.utcnow().isoformat(),
+            'cert_expires_in_days': None
         }
         
         try:
@@ -73,7 +69,21 @@ class MonitoringService:
         try:
             # Prepare request parameters
             headers = monitor.get_parsed_headers()
+            if not headers:
+                headers = {}
             
+            # Set default browser-like headers if not provided, to avoid being blocked
+            if 'User-Agent' not in headers:
+                headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            if 'Accept' not in headers:
+                headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8'
+            if 'Accept-Language' not in headers:
+                headers['Accept-Language'] = 'en-US,en;q=0.9'
+            if 'Accept-Encoding' not in headers:
+                headers['Accept-Encoding'] = 'gzip, deflate, br'
+            if 'Connection' not in headers:
+                headers['Connection'] = 'keep-alive'
+
             # Make the request with retry logic
             for attempt in range(monitor.retries):
                 try:
@@ -84,7 +94,7 @@ class MonitoringService:
                         data=monitor.body,
                         timeout=monitor.timeout,
                         allow_redirects=True,
-                        verify=True  # SSL verification
+                        verify=monitor.verify_ssl
                     )
                     
                     # Calculate response time
@@ -124,13 +134,46 @@ class MonitoringService:
         
         except Exception as e:
             check_result['error_message'] = str(e)
+
+        # Certificate Expiry Check
+        if monitor.check_cert_expiry and monitor.url.startswith('https://'):
+            try:
+                hostname = monitor.url.split('/')[2]
+                context = ssl.create_default_context()
+                with socket.create_connection((hostname, 443), timeout=monitor.timeout) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                        cert = ssock.getpeercert()
+                        expiry_date_str = cert['notAfter']
+                        # Example format: 'Sep  9 12:00:00 2025 GMT'
+                        expiry_date = datetime.strptime(expiry_date_str, '%b %d %H:%M:%S %Y %Z')
+                        
+                        # Make expiry_date timezone-aware to compare with utcnow()
+                        # We assume GMT/UTC from the cert string
+                        expiry_date = expiry_date.replace(tzinfo=pytz.utc)
+                        
+                        now_utc = datetime.now(pytz.utc)
+                        days_remaining = (expiry_date - now_utc).days
+                        
+                        check_result['cert_expires_in_days'] = days_remaining
+                        
+                        # If cert expires in less than 30 days, consider it a warning/down
+                        if days_remaining < 0:
+                            check_result['is_up'] = False
+                            check_result['error_message'] = f"Certificate for {hostname} has expired."
+                        elif days_remaining < 30:
+                            # This is a soft-down, might need a special status later
+                            if check_result['is_up']: # Don't overwrite a real error
+                                check_result['error_message'] = f"Certificate for {hostname} expires in {days_remaining} days."
+
+            except Exception as cert_e:
+                logger.error(f"Could not check SSL cert for {hostname}: {cert_e}")
+                if check_result['is_up']: # Don't overwrite a real error
+                    check_result['error_message'] = f"Failed to check SSL certificate: {cert_e}"
         
         return check_result
     
     def check_ping_monitor(self, monitor, check_result):
         """Check ping monitor using socket connection."""
-        import subprocess
-        
         start_time = time.time()
         
         try:
@@ -138,8 +181,9 @@ class MonitoringService:
             hostname = monitor.url.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
             
             # Use system ping command
+            command = ['ping', '-n', '1', '-w', str(monitor.timeout * 1000), hostname] if os.name == 'nt' else ['ping', '-c', '1', '-W', str(monitor.timeout), hostname]
             result = subprocess.run(
-                ['ping', '-c', '1', '-W', str(monitor.timeout * 1000), hostname],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=monitor.timeout
@@ -193,80 +237,126 @@ class MonitoringService:
         """Save check result to database and handle incidents."""
         try:
             # Create new check record
-            check = MonitorCheck(**check_result)
-            self.session.add(check)
+            db.add('check', check_result)
             
+            # Update history
+            self.update_history(check_result)
+
             # Handle incident tracking
-            monitor = self.session.query(Monitor).get(check_result['monitor_id'])
-            if monitor:
+            monitor_data = db.get_by_id('monitor', check_result['monitor_id'])
+            if monitor_data:
+                monitor = Monitor(**monitor_data)
                 self.handle_incident_tracking(monitor, check_result['is_up'], check_result.get('error_message'))
-            
-            self.session.commit()
             
         except Exception as e:
             logger.error(f'Error saving check result: {str(e)}')
-            self.session.rollback()
+
+    def update_history(self, check_result):
+        """Update the history file with the latest check."""
+        try:
+            history = db.read_data(db.history_file)
+            now = datetime.utcnow()
+            
+            # Add new check
+            history.append({
+                'monitor_id': check_result['monitor_id'],
+                'checked_at': check_result['checked_at'],
+                'response_time': check_result['response_time'],
+                'is_up': check_result['is_up']
+            })
+            
+            # Prune old data (older than 7 days)
+            cutoff = now - timedelta(days=7)
+            history = [h for h in history if datetime.fromisoformat(h['checked_at']) >= cutoff]
+            
+            db.write_data(db.history_file, history)
+        except Exception as e:
+            logger.error(f"Error updating history file: {e}")
     
+    def is_in_maintenance(self):
+        """Check if there is an active global maintenance window."""
+        schedules_data = db.get_all('maintenance')
+        now = datetime.utcnow()
+        for s_data in schedules_data:
+            schedule = Maintenance(**s_data)
+            if schedule.is_active:
+                logger.info(f"Active maintenance window: '{schedule.name}'")
+                return True
+        return False
+
     def handle_incident_tracking(self, monitor, is_up, error_message):
         """Handle incident creation and resolution."""
-        # Get the latest incident for this monitor
-        latest_incident = self.session.query(Incident).filter_by(
-            monitor_id=monitor.id,
-            is_resolved=False
-        ).order_by(Incident.started_at.desc()).first()
+        all_incidents = db.get_all('incident')
+        latest_incident_data = None
+        for i in sorted(all_incidents, key=lambda x: x['started_at'], reverse=True):
+            if i['monitor_id'] == monitor.id and not i.get('is_resolved', False):
+                latest_incident_data = i
+                break
         
         if not is_up:  # Monitor is down
-            if not latest_incident:
+            if self.is_in_maintenance():
+                logger.info(f"Monitor {monitor.name} is down during a maintenance window. Suppressing incident.")
+                return
+
+            if not latest_incident_data:
                 # Create new incident
-                incident = Incident(
-                    monitor_id=monitor.id,
-                    started_at=datetime.utcnow(),
-                    error_message=error_message,
-                    is_resolved=False
-                )
-                self.session.add(incident)
+                incident_data = {
+                    'monitor_id': monitor.id,
+                    'started_at': datetime.utcnow().isoformat(),
+                    'error_message': error_message,
+                    'is_resolved': False
+                }
+                new_incident = db.add('incident', incident_data)
                 logger.warning(f'New incident created for monitor: {monitor.name}')
                 
                 # Send notifications for new incident
-                self.send_notifications('incident_started', monitor, incident)
+                self.send_notifications('incident_started', monitor, Incident(**new_incident))
                 
         else:  # Monitor is up
-            if latest_incident:
+            if latest_incident_data:
                 # Resolve existing incident
-                latest_incident.ended_at = datetime.utcnow()
-                latest_incident.duration = int((latest_incident.ended_at - latest_incident.started_at).total_seconds())
-                latest_incident.is_resolved = True
-                logger.info(f'Incident resolved for monitor: {monitor.name} (Duration: {latest_incident.duration_formatted})')
+                ended_at = datetime.utcnow()
+                started_at = datetime.fromisoformat(latest_incident_data['started_at'])
+                duration = int((ended_at - started_at).total_seconds())
+                
+                update_data = {
+                    'ended_at': ended_at.isoformat(),
+                    'duration': duration,
+                    'is_resolved': True
+                }
+                db.update('incident', latest_incident_data['id'], update_data)
+                
+                resolved_incident = Incident(**{**latest_incident_data, **update_data})
+                logger.info(f'Incident resolved for monitor: {monitor.name} (Duration: {resolved_incident.duration_formatted})')
                 
                 # Send notifications for incident resolution
-                self.send_notifications('incident_resolved', monitor, latest_incident)
+                self.send_notifications('incident_resolved', monitor, resolved_incident)
     
     def run_checks(self):
         """Run checks for all active monitors that are due for checking."""
         try:
-            with self.app.app_context():
-                # Get monitors that need checking
-                now = datetime.utcnow()
-                monitors = self.session.query(Monitor).filter_by(is_active=True).all()
+            now = datetime.utcnow()
+            all_monitors_data = db.get_all('monitor')
+            active_monitors = [Monitor(**m) for m in all_monitors_data if m.get('is_active', True)]
+            all_checks_data = db.get_all('check')
+
+            for monitor in active_monitors:
+                # Check if monitor is due for checking
+                monitor_checks = [c for c in all_checks_data if c['monitor_id'] == monitor.id]
+                last_check = max(monitor_checks, key=lambda c: c['checked_at'], default=None)
                 
-                for monitor in monitors:
-                    # Check if monitor is due for checking
-                    last_check = self.session.query(MonitorCheck).filter_by(
-                        monitor_id=monitor.id
-                    ).order_by(MonitorCheck.checked_at.desc()).first()
+                if not last_check or (now - datetime.fromisoformat(last_check['checked_at'])).total_seconds() >= monitor.interval:
+                    logger.info(f'Checking monitor: {monitor.name}')
                     
-                    if not last_check or (now - last_check.checked_at).total_seconds() >= monitor.interval:
-                        logger.info(f'Checking monitor: {monitor.name}')
-                        
-                        # Run the check
-                        result = self.check_monitor(monitor)
-                        
-                        # Save the result
-                        self.save_check_result(result)
-                        
-                        status = "UP" if result['is_up'] else "DOWN"
-                        response_time = f" ({result['response_time']}ms)" if result['response_time'] else ""
-                        logger.info(f'Monitor {monitor.name}: {status}{response_time}')
+                    # Run the check
+                    result = self.check_monitor(monitor)
+                    
+                    # Save the result
+                    self.save_check_result(result)
+                    
+                    status = "UP" if result['is_up'] else "DOWN"
+                    response_time = f" ({result['response_time']}ms)" if result['response_time'] else ""
+                    logger.info(f'Monitor {monitor.name}: {status}{response_time}')
         
         except Exception as e:
             logger.error(f'Error in run_checks: {str(e)}')
@@ -275,7 +365,8 @@ class MonitoringService:
         """Send notifications through all active channels."""
         try:
             # Get active notification channels
-            channels = self.session.query(NotificationChannel).filter_by(is_active=True).all()
+            all_channels_data = db.get_all('notification_channel')
+            channels = [NotificationChannel(**c) for c in all_channels_data if c.get('is_active', True)]
             
             if not channels:
                 logger.debug('No active notification channels configured')
@@ -313,45 +404,48 @@ class MonitoringService:
     def cleanup_old_data(self):
         """Clean up old check data and resolved incidents."""
         try:
-            with self.app.app_context():
-                # Remove check data older than configured days
-                cutoff_date = datetime.utcnow() - timedelta(days=self.app.config['KEEP_HISTORY_DAYS'])
-                
-                old_checks = self.session.query(MonitorCheck).filter(
-                    MonitorCheck.checked_at < cutoff_date
-                ).delete()
-                
-                # Remove resolved incidents older than 90 days
-                old_incidents = self.session.query(Incident).filter(
-                    Incident.is_resolved == True,
-                    Incident.ended_at < datetime.utcnow() - timedelta(days=90)
-                ).delete()
-                
-                self.session.commit()
-                
-                if old_checks > 0 or old_incidents > 0:
-                    logger.info(f'Cleaned up {old_checks} old checks and {old_incidents} old incidents')
-        
+            # Clean up checks
+            keep_history_days = self.app.config.get('KEEP_HISTORY_DAYS', 30)
+            cutoff_date_checks = datetime.utcnow() - timedelta(days=keep_history_days)
+            all_checks = db.get_all('check')
+            checks_to_keep = [c for c in all_checks if datetime.fromisoformat(c['checked_at']) >= cutoff_date_checks]
+            
+            if len(checks_to_keep) < len(all_checks):
+                db.write_data(db.checks_file, checks_to_keep)
+                logger.info(f'Cleaned up {len(all_checks) - len(checks_to_keep)} old checks')
+
+            # Clean up incidents
+            cutoff_date_incidents = datetime.utcnow() - timedelta(days=90)
+            all_incidents = db.get_all('incident')
+            incidents_to_keep = [
+                i for i in all_incidents 
+                if not i.get('is_resolved') or not i.get('ended_at') or datetime.fromisoformat(i['ended_at']) >= cutoff_date_incidents
+            ]
+
+            if len(incidents_to_keep) < len(all_incidents):
+                db.write_data(db.incidents_file, incidents_to_keep)
+                logger.info(f'Cleaned up {len(all_incidents) - len(incidents_to_keep)} old incidents')
+
         except Exception as e:
             logger.error(f'Error in cleanup_old_data: {str(e)}')
-            self.session.rollback()
 
 def run_monitoring_service():
     """Main function to run the monitoring service."""
     app = create_app()
-    service = MonitoringService(app)
+    with app.app_context():
+        service = MonitoringService(app)
     
-    # Schedule checks every 30 seconds
-    schedule.every(30).seconds.do(service.run_checks)
+        # Schedule checks every 30 seconds
+        schedule.every(30).seconds.do(service.run_checks)
     
-    # Schedule cleanup daily at 02:00
-    schedule.every().day.at("02:00").do(service.cleanup_old_data)
+        # Schedule cleanup daily at 02:00
+        schedule.every().day.at("02:00").do(service.cleanup_old_data)
     
-    logger.info('Monitoring service started')
+        logger.info('Monitoring service started')
     
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
 
 if __name__ == '__main__':
     run_monitoring_service()

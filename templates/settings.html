@@ -6,16 +6,16 @@
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-        <h1 class="text-3xl font-bold text-gray-900">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
             <i class="fas fa-cog mr-2"></i>Settings
         </h1>
     </div>
 
     <!-- Notification Channels -->
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-900">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                     <i class="fas fa-bell mr-2"></i>Notification Channels
                 </h2>
                 <button class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
@@ -41,8 +41,8 @@
                             {% endif %}
                         </div>
                         <div>
-                            <h3 class="text-sm font-medium text-gray-900">{{ channel.name }}</h3>
-                            <p class="text-sm text-gray-500">{{ channel.type.title() }} notification</p>
+                            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ channel.name }}</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ channel.type.title() }} notification</p>
                         </div>
                     </div>
                     
@@ -79,9 +79,9 @@
     </div>
 
     <!-- General Settings -->
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-medium text-gray-900">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                 <i class="fas fa-sliders-h mr-2"></i>General Settings
             </h2>
         </div>
@@ -89,8 +89,8 @@
             <form class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Default Check Interval</label>
-                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Default Check Interval</label>
+                        <select class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                             <option value="30">30 seconds</option>
                             <option value="60" selected>1 minute</option>
                             <option value="300">5 minutes</option>
@@ -100,8 +100,8 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Default Timeout</label>
-                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Default Timeout</label>
+                        <select class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                             <option value="10">10 seconds</option>
                             <option value="30" selected>30 seconds</option>
                             <option value="60">60 seconds</option>
@@ -110,8 +110,8 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Keep History</label>
-                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Keep History</label>
+                        <select class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                             <option value="7">7 days</option>
                             <option value="30" selected>30 days</option>
                             <option value="90">90 days</option>
@@ -120,8 +120,8 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Items per Page</label>
-                        <select class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Items per Page</label>
+                        <select class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                             <option value="10">10</option>
                             <option value="20" selected>20</option>
                             <option value="50">50</option>
@@ -129,8 +129,18 @@
                         </select>
                     </div>
                 </div>
+                <div class="pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <label for="dark-mode-toggle" class="flex items-center cursor-pointer">
+                        <span class="mr-3 text-sm font-medium text-gray-700 dark:text-gray-300">Dark Mode</span>
+                        <div class="relative">
+                            <input type="checkbox" id="dark-mode-toggle" class="sr-only">
+                            <div class="block bg-gray-600 w-14 h-8 rounded-full"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition"></div>
+                        </div>
+                    </label>
+                </div>
                 
-                <div class="pt-6 border-t border-gray-200">
+                <div class="pt-6 border-t border-gray-200 dark:border-gray-700">
                     <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
                         <i class="fas fa-save mr-2"></i>Save Settings
                     </button>
@@ -139,90 +149,73 @@
         </div>
     </div>
 
-    <!-- System Info -->
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-medium text-gray-900">
-                <i class="fas fa-info-circle mr-2"></i>System Information
-            </h2>
-        </div>
-        <div class="px-6 py-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                <div>
-                    <h4 class="font-medium text-gray-900 mb-2">Application</h4>
-                    <div class="space-y-1 text-gray-600">
-                        <div>Version: 1.0.0</div>
-                        <div>Python: 3.x</div>
-                        <div>Flask: 2.x</div>
-                    </div>
-                </div>
-                
-                <div>
-                    <h4 class="font-medium text-gray-900 mb-2">Database</h4>
-                    <div class="space-y-1 text-gray-600">
-                        <div>Type: SQLite</div>
-                        <div>Status: <span class="text-green-600">Connected</span></div>
-                    </div>
-                </div>
-                
-                <div>
-                    <h4 class="font-medium text-gray-900 mb-2">Monitoring Service</h4>
-                    <div class="space-y-1 text-gray-600">
-                        <div>Status: <span class="text-green-600">Running</span></div>
-                        <div>Uptime: 1d 2h 30m</div>
-                    </div>
-                </div>
-                
-                <div>
-                    <h4 class="font-medium text-gray-900 mb-2">Statistics</h4>
-                    <div class="space-y-1 text-gray-600">
-                        <div>Total Checks: 12,345</div>
-                        <div>Total Incidents: 23</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Actions -->
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-medium text-gray-900">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                 <i class="fas fa-tools mr-2"></i>Maintenance
             </h2>
         </div>
-        <div class="px-6 py-6">
-            <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h4 class="text-sm font-medium text-gray-900">Clean Up Old Data</h4>
-                        <p class="text-sm text-gray-500">Remove check history older than the retention period</p>
-                    </div>
-                    <button class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
+        <div class="px-6 py-6 divide-y divide-gray-200 dark:divide-gray-700">
+            <!-- Clean Up -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Clean Up Old Data</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Remove check history older than the retention period.</p>
+                </div>
+                <form action="{{ url_for('main.cleanup_data') }}" method="POST" class="inline">
+                    <button type="submit" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
                         Clean Up Now
                     </button>
+                </form>
+            </div>
+
+            <!-- Export All Data -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Export All Data</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Download all application data (monitors, history, etc.) as a single JSON file.</p>
                 </div>
-                
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h4 class="text-sm font-medium text-gray-900">Export Data</h4>
-                        <p class="text-sm text-gray-500">Download all monitoring data as JSON</p>
-                    </div>
-                    <button class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                        Export
+                <a href="{{ url_for('main.export_data') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    Export All
+                </a>
+            </div>
+
+            <!-- Export Site Config -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Export Site Configuration</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Export just the monitor configurations for backup.</p>
+                </div>
+                <a href="{{ url_for('main.export_monitors') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    Export Monitors
+                </a>
+            </div>
+
+            <!-- Import Site Config -->
+            <div class="py-4">
+                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Import Site Configuration</h4>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Restore monitor configurations from a JSON file. This will overwrite existing monitors.</p>
+                <form action="{{ url_for('main.import_monitors') }}" method="POST" enctype="multipart/form-data" class="flex items-center space-x-2">
+                    <input type="file" name="file" required class="text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                        Import
                     </button>
+                </form>
+            </div>
+
+            <!-- Reset Data -->
+            <div class="pt-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reset All Data</h4>
+                    <p class="text-sm text-red-500">⚠️ This will permanently delete all monitors, history, and incidents.</p>
                 </div>
-                
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h4 class="text-sm font-medium text-gray-900">Reset Database</h4>
-                        <p class="text-sm text-gray-500 text-red-600">⚠️ This will delete all data permanently</p>
-                    </div>
-                    <button class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-                            onclick="return confirm('Are you sure? This will delete all data permanently!')">
+                <form action="{{ url_for('main.reset_data') }}" method="POST" class="inline">
+                    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                            onclick="return confirm('Are you sure? This will delete all application data permanently!')">
                         Reset
                     </button>
-                </div>
+                </form>
             </div>
         </div>
     </div>

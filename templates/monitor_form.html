@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="max-w-2xl mx-auto">
-    <div class="bg-white shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-medium text-gray-900">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
                 <i class="fas fa-{% if monitor %}edit{% else %}plus{% endif %} mr-2"></i>
                 {% if monitor %}Edit Monitor{% else %}Add New Monitor{% endif %}
             </h2>
@@ -15,21 +15,21 @@
         <form method="POST" class="px-6 py-6 space-y-6">
             <!-- Basic Information -->
             <div>
-                <h3 class="text-md font-medium text-gray-900 mb-4">Basic Information</h3>
+                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Basic Information</h3>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="name" class="block text-sm font-medium text-gray-700">Monitor Name</label>
+                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Monitor Name</label>
                         <input type="text" id="name" name="name" required
                                value="{{ monitor.name if monitor else '' }}"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
-                        <p class="text-xs text-gray-500 mt-1">Descriptive name for this monitor</p>
+                               class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Descriptive name for this monitor</p>
                     </div>
                     
                     <div>
-                        <label for="monitor_type" class="block text-sm font-medium text-gray-700">Monitor Type</label>
+                        <label for="monitor_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Monitor Type</label>
                         <select id="monitor_type" name="monitor_type" 
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                                class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                             <option value="http" {% if not monitor or monitor.monitor_type == 'http' %}selected{% endif %}>HTTP</option>
                             <option value="https" {% if monitor and monitor.monitor_type == 'https' %}selected{% endif %}>HTTPS</option>
                             <option value="ping" {% if monitor and monitor.monitor_type == 'ping' %}selected{% endif %}>Ping</option>
@@ -39,24 +39,24 @@
                 </div>
                 
                 <div class="mt-4">
-                    <label for="url" class="block text-sm font-medium text-gray-700">URL</label>
+                    <label for="url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">URL</label>
                     <input type="url" id="url" name="url" required
                            value="{{ monitor.url if monitor else '' }}"
                            placeholder="https://example.com"
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
-                    <p class="text-xs text-gray-500 mt-1">The URL or endpoint to monitor</p>
+                           class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The URL or endpoint to monitor</p>
                 </div>
             </div>
             
             <!-- HTTP Settings -->
             <div id="http-settings">
-                <h3 class="text-md font-medium text-gray-900 mb-4">HTTP Settings</h3>
+                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">HTTP Settings</h3>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="method" class="block text-sm font-medium text-gray-700">HTTP Method</label>
+                        <label for="method" class="block text-sm font-medium text-gray-700 dark:text-gray-300">HTTP Method</label>
                         <select id="method" name="method" 
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                                class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                             <option value="GET" {% if not monitor or monitor.method == 'GET' %}selected{% endif %}>GET</option>
                             <option value="POST" {% if monitor and monitor.method == 'POST' %}selected{% endif %}>POST</option>
                             <option value="PUT" {% if monitor and monitor.method == 'PUT' %}selected{% endif %}>PUT</option>
@@ -65,89 +65,136 @@
                     </div>
                     
                     <div>
-                        <label for="expected_status" class="block text-sm font-medium text-gray-700">Expected Status Code</label>
+                        <label for="expected_status" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Expected Status Code</label>
                         <input type="number" id="expected_status" name="expected_status"
                                value="{{ monitor.expected_status if monitor else 200 }}"
                                min="100" max="599"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                               class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                     </div>
                 </div>
                 
                 <div class="mt-4">
-                    <label for="expected_text" class="block text-sm font-medium text-gray-700">Expected Text (optional)</label>
+                    <label for="expected_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Expected Text (optional)</label>
                     <input type="text" id="expected_text" name="expected_text"
-                           value="{{ monitor.expected_text if monitor else '' }}"
+                           value="{{ monitor.expected_text or '' }}"
                            placeholder="Text that should be present in the response"
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
-                    <p class="text-xs text-gray-500 mt-1">Leave empty to skip text verification</p>
+                           class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty to skip text verification</p>
+                </div>
+
+                <div class="mt-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="verify_ssl" name="verify_ssl" {% if monitor and monitor.verify_ssl %}checked{% endif %}
+                               class="rounded border-gray-300 dark:border-gray-600 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-300">Verify SSL Certificate</span>
+                    </label>
+                </div>
+
+                <div class="mt-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="check_cert_expiry" name="check_cert_expiry" {% if monitor and monitor.check_cert_expiry %}checked{% endif %}
+                                 class="rounded border-gray-300 dark:border-gray-600 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-300">Certificate Expiry</span>
+                    </label>
                 </div>
                 
                 <div class="mt-4">
-                    <label for="headers" class="block text-sm font-medium text-gray-700">Custom Headers (JSON format)</label>
+                    <label for="headers" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Custom Headers (JSON format)</label>
                     <textarea id="headers" name="headers" rows="3"
                               placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'
-                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.headers if monitor else '' }}</textarea>
-                    <p class="text-xs text-gray-500 mt-1">Optional: JSON object with custom headers</p>
+                              class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.headers or '' }}</textarea>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Optional: JSON object with custom headers</p>
                 </div>
                 
                 <div class="mt-4" id="request-body" style="display: none;">
-                    <label for="body" class="block text-sm font-medium text-gray-700">Request Body</label>
+                    <label for="body" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Request Body</label>
                     <textarea id="body" name="body" rows="4"
                               placeholder="Request body for POST/PUT requests"
-                              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.body if monitor else '' }}</textarea>
+                              class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.body or '' }}</textarea>
                 </div>
             </div>
             
             <!-- Monitoring Settings -->
             <div>
-                <h3 class="text-md font-medium text-gray-900 mb-4">Monitoring Settings</h3>
+                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Monitoring Settings</h3>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label for="interval" class="block text-sm font-medium text-gray-700">Check Interval (seconds)</label>
+                        <label for="interval" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Check Interval (seconds)</label>
                         <input type="number" id="interval" name="interval"
                                value="{{ monitor.interval if monitor else 60 }}"
                                min="30" max="3600"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                               class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                     </div>
                     
                     <div>
-                        <label for="timeout" class="block text-sm font-medium text-gray-700">Timeout (seconds)</label>
+                        <label for="timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Timeout (seconds)</label>
                         <input type="number" id="timeout" name="timeout"
                                value="{{ monitor.timeout if monitor else 30 }}"
                                min="5" max="120"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                               class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                     </div>
                     
                     <div>
-                        <label for="retries" class="block text-sm font-medium text-gray-700">Retries</label>
+                        <label for="retries" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Retries</label>
                         <input type="number" id="retries" name="retries"
                                value="{{ monitor.retries if monitor else 3 }}"
                                min="1" max="10"
-                               class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                               class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                     </div>
                 </div>
             </div>
             
-            <!-- Actions -->
-            <div class="flex items-center justify-between pt-6 border-t border-gray-200">
-                <a href="{{ url_for('main.dashboard') }}" 
-                   class="text-gray-600 hover:text-gray-800">
-                    <i class="fas fa-arrow-left mr-2"></i>Cancel
-                </a>
-                
-                <div class="space-x-3">
+            <!-- Admin Notes -->
+            <div>
+                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Admin Notes</h3>
+                <div>
+                    <label for="admin_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Admin Notes (URL)</label>
+                    <input type="url" id="admin_notes" name="admin_notes"
+                           value="{{ monitor.admin_notes if monitor else '' }}"
+                           placeholder="https://example.com/notes"
+                           class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">URL to SharePoint or other internal notes.</p>
+                </div>
+                <div class="mt-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="server_client" name="server_client" {% if monitor and monitor.server_client %}checked{% endif %}
+                                 class="rounded border-gray-300 dark:border-gray-600 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-300">Server Client</span>
+                    </label>
                     {% if monitor %}
-                        <button type="button" onclick="testMonitor()" 
-                                class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
-                            <i class="fas fa-vial mr-2"></i>Test Now
-                        </button>
+                    <div id="agent-download" class="mt-2 pl-6" style="display: none;">
+                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id) }}" class="text-blue-600 hover:text-blue-800">
+                            <i class="fas fa-download mr-1"></i>Download Agent
+                        </a>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Download this monitor's system metrics agent</p>
+                    </div>
                     {% endif %}
-                    <button type="submit" 
-                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                        <i class="fas fa-save mr-2"></i>
-                        {% if monitor %}Update{% else %}Create{% endif %} Monitor
-                    </button>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="pt-6 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                <div id="test-result" class="p-4 rounded-md" style="display: none;"></div>
+                <div class="flex items-center justify-between">
+                    <a href="{{ url_for('main.dashboard') }}" 
+                       class="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
+                        <i class="fas fa-arrow-left mr-2"></i>Cancel
+                    </a>
+                    
+                    <div class="space-x-3">
+                        {% if monitor %}
+                            <button type="button" id="test-button"
+                                    class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
+                                <i class="fas fa-vial mr-2"></i>Test Now
+                            </button>
+                        {% endif %}
+                        <button type="submit" 
+                                class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                            <i class="fas fa-save mr-2"></i>
+                            {% if monitor %}Update{% else %}Create{% endif %} Monitor
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
@@ -180,13 +227,82 @@ document.addEventListener('DOMContentLoaded', function() {
     // Trigger change events to set initial state
     document.getElementById('method').dispatchEvent(new Event('change'));
     document.getElementById('monitor_type').dispatchEvent(new Event('change'));
+
+    const testButton = document.getElementById('test-button');
+    if (testButton) {
+        testButton.addEventListener('click', testMonitor);
+    }
+
+    // Show/hide agent download link based on server client checkbox
+    const serverClientCheckbox = document.getElementById('server_client');
+    const agentDownload = document.getElementById('agent-download');
+    if (serverClientCheckbox && agentDownload) {
+        function toggleAgentDownload() {
+            agentDownload.style.display = serverClientCheckbox.checked ? 'block' : 'none';
+        }
+        serverClientCheckbox.addEventListener('change', toggleAgentDownload);
+        toggleAgentDownload(); // Initial state
+    }
 });
 
-{% if monitor %}
 function testMonitor() {
-    // Implement test functionality
-    alert('Test functionality would be implemented here');
+    const testButton = document.getElementById('test-button');
+    const resultDiv = document.getElementById('test-result');
+
+    // Disable button and show loading state
+    testButton.disabled = true;
+    testButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Testing...';
+    resultDiv.style.display = 'none';
+
+    // Collect form data into a config object
+    const config = {
+        name: document.getElementById('name').value,
+        url: document.getElementById('url').value,
+        monitor_type: document.getElementById('monitor_type').value,
+        method: document.getElementById('method').value,
+        expected_status: parseInt(document.getElementById('expected_status').value, 10),
+        expected_text: document.getElementById('expected_text').value || null,
+        timeout: parseInt(document.getElementById('timeout').value, 10),
+        headers: document.getElementById('headers').value || null,
+        body: document.getElementById('body').value || null,
+        verify_ssl: document.getElementById('verify_ssl').checked
+    };
+
+    fetch("{{ url_for('api.api_test_monitor') }}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
+    })
+    .then(response => response.json())
+    .then(data => {
+        resultDiv.style.display = 'block';
+        if (data.is_up) {
+            resultDiv.className = 'p-4 rounded-md bg-green-100 text-green-800';
+            resultDiv.innerHTML = `
+                <h4 class="font-bold">Test Successful!</h4>
+                <p>Status: UP | Status Code: ${data.status_code || 'N/A'} | Response Time: ${data.response_time.toFixed(0)}ms</p>
+            `;
+        } else {
+            resultDiv.className = 'p-4 rounded-md bg-red-100 text-red-800';
+            resultDiv.innerHTML = `
+                <h4 class="font-bold">Test Failed!</h4>
+                <p>Error: ${data.error_message}</p>
+                <p>Status Code: ${data.status_code || 'N/A'} | Response Time: ${data.response_time.toFixed(0)}ms</p>
+            `;
+        }
+    })
+    .catch(error => {
+        resultDiv.style.display = 'block';
+        resultDiv.className = 'p-4 rounded-md bg-red-100 text-red-800';
+        resultDiv.innerHTML = `<h4 class="font-bold">Test Failed!</h4><p>An unexpected error occurred: ${error}</p>`;
+    })
+    .finally(() => {
+        // Re-enable button
+        testButton.disabled = false;
+        testButton.innerHTML = '<i class="fas fa-vial mr-2"></i>Test Now';
+    });
 }
-{% endif %}
 </script>
 {% endblock %}

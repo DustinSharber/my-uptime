@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Maintenance Schedule{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-4">Edit Maintenance Schedule</h1>
+
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+        <form action="{{ url_for('main.edit_maintenance', schedule_id=schedule.id) }}" method="POST">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Schedule Name</label>
+                    <input type="text" name="name" id="name" value="{{ schedule.name }}" required
+                           class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700">
+                </div>
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                    <input type="text" name="description" id="description" value="{{ schedule.description }}"
+                           class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700">
+                </div>
+                <div>
+                    <label for="start_time" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Time</label>
+                    <input type="datetime-local" name="start_time" id="start_time" value="{{ schedule.start_time.strftime('%Y-%m-%dT%H:%M') }}" required
+                           class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700">
+                </div>
+                <div>
+                    <label for="end_time" class="block text-sm font-medium text-gray-700 dark:text-gray-300">End Time</label>
+                    <input type="datetime-local" name="end_time" id="end_time" value="{{ schedule.end_time.strftime('%Y-%m-%dT%H:%M') }}" required
+                           class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700">
+                </div>
+            </div>
+            <div class="mt-6">
+                <label for="timezone" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Timezone</label>
+                <select id="timezone" name="timezone" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:bg-gray-700">
+                    {% for tz in timezones %}
+                        <option value="{{ tz }}" {% if tz == schedule_timezone %}selected{% endif %}>{{ tz }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mt-6">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Affected Monitors</h3>
+                    <div class="flex items-center">
+                        <input id="select-all-monitors" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        <label for="select-all-monitors" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                            Select All
+                        </label>
+                    </div>
+                </div>
+                <div class="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% for monitor in monitors %}
+                        <div class="flex items-start">
+                            <div class="flex items-center h-5">
+                                <input id="monitor_{{ monitor.id }}" name="monitors" value="{{ monitor.id }}" type="checkbox"
+                                       {% if monitor.id in schedule.monitors %}checked{% endif %}
+                                       class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded">
+                            </div>
+                            <div class="ml-3 text-sm">
+                                <label for="monitor_{{ monitor.id }}" class="font-medium text-gray-700 dark:text-gray-300">{{ monitor.name }}</label>
+                                <p class="text-gray-500 dark:text-gray-400">{{ monitor.url }}</p>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <a href="{{ url_for('main.maintenance') }}" class="mr-4 bg-gray-200 text-gray-800 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-300">
+                    Cancel
+                </a>
+                <button type="submit"
+                        class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+                    <i class="fas fa-save mr-1"></i> Update Schedule
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectAllCheckbox = document.getElementById('select-all-monitors');
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function(event) {
+                const isChecked = event.target.checked;
+                document.querySelectorAll('input[name="monitors"]').forEach(function(checkbox) {
+                    checkbox.checked = isChecked;
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

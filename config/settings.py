@@ -16,6 +16,7 @@ class Config:
     
     # Application settings
     ITEMS_PER_PAGE = int(os.environ.get('ITEMS_PER_PAGE', '20'))
+    TIMEZONE = os.environ.get('TIMEZONE', 'UTC')
     DEBUG = False
     TESTING = False
 

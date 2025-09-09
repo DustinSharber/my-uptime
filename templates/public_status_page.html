@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ status_page.name }} - Status Page{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold">{{ status_page.name }}</h1>
+</div>
+
+<div class="space-y-4">
+    {% for monitor in status_page.monitor_objects %}
+    <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center">
+                <span class="mr-3">
+                    {% if monitor.in_maintenance %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            Maintenance
+                        </span>
+                    {% elif monitor.status == 'up' %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                            Up
+                        </span>
+                    {% elif monitor.status == 'down' %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                            Down
+                        </span>
+                    {% else %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                            Unknown
+                        </span>
+                    {% endif %}
+                </span>
+                <span class="font-semibold">{{ monitor.name }}</span>
+            </div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">
+                {{ "%.2f"|format(monitor.uptime_percentage) }}% uptime
+            </div>
+        </div>
+        <div class="mt-4 flex justify-center items-center space-x-1">
+            {% for check in monitor.daily_checks %}
+                {% if check.in_maintenance %}
+                    <div class="w-2 h-8 bg-yellow-400 rounded" title="Maintenance at {{ check.checked_at }}"></div>
+                {% elif check.is_up == True %}
+                    <div class="w-2 h-8 bg-green-500 rounded" title="Up at {{ check.checked_at }}"></div>
+                {% elif check.is_up == False %}
+                    <div class="w-2 h-8 bg-red-500 rounded" title="Down at {{ check.checked_at }}"></div>
+                {% else %}
+                    <div class="w-2 h-8 bg-gray-300 dark:bg-gray-600 rounded" title="No data"></div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-8">
+        <p class="text-gray-500 dark:text-gray-400">There are no monitors associated with this status page.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

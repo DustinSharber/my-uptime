@@ -157,7 +157,7 @@ class NotificationService:
             attachment = {
                 'color': color,
                 'title': f'Monitor Alert: {monitor.name}',
-                'title_link': f'http://localhost:3000/monitors/{monitor.id}',
+                'title_link': f'http://localhost:5001/monitors/{monitor.id}',
                 'fields': [
                     {
                         'title': 'Monitor',
@@ -282,7 +282,7 @@ class NotificationService:
                 
                 <div class="footer">
                     <p>This alert was sent by Python Monitor</p>
-                    <p>View monitor details: <a href="http://localhost:3000/monitors/{monitor.id}">Monitor Dashboard</a></p>
+                    <p>View monitor details: <a href="http://localhost:5001/monitors/{monitor.id}">Monitor Dashboard</a></p>
                 </div>
             </div>
         </body>

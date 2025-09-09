@@ -97,47 +97,61 @@ The application uses SQLAlchemy with the following core models:
 
 ### Installation
 
-1. **Clone the repository** (or download the source code):
+1.  **Clone the repository** (or download the source code):
+    ```bash
+    git clone https://github.com/DustinSharber/my-uptime.git
+    cd my-uptime
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Initialize the database**:
+    ```bash
+    flask init-db
+    flask create-sample-data
+    ```
+
+### Running the Application
+
+To run the application, you need to start two separate processes in two different terminals.
+
+**Terminal 1: Start the Web Application**
 ```bash
-git clone <repository-url>
-cd webapp
-```
-
-2. **Install dependencies**:
-```bash
-pip install -r requirements.txt
-```
-
-3. **Initialize the database**:
-```bash
-python app.py init-db
-python app.py create-sample-data
-```
-
-4. **Start the services**:
-```bash
-# Start both web app and monitoring service with supervisor
-supervisord -c supervisord.conf
-
-# Check service status
-supervisorctl -c supervisord.conf status
-```
-
-5. **Access the application**:
-   - Open http://localhost:3000 in your browser
-   - API available at http://localhost:3000/api/status
-
-### Manual Startup (Alternative)
-
-If you prefer to run services manually:
-
-```bash
-# Terminal 1: Start web application
 python app.py
-
-# Terminal 2: Start monitoring service
-python monitoring_service.py
 ```
+This will start the web interface, which you can access at `http://localhost:5001`.
+
+**Terminal 2: Start the Monitoring Service**
+```bash
+python -m app.monitoring
+```
+This will start the background service that performs the monitoring checks. The monitors will not work without this service running.
+
+### Access the Application
+- **Web Interface**: Open `http://localhost:5001` in your browser.
+- **API**: The API is available at `http://localhost:5001/api/status`.
+
+### Using Supervisor (Advanced)
+
+For a more robust setup, you can use `supervisord` to manage both processes. This is recommended for production or long-term use.
+
+1.  **Install Supervisor**:
+    ```bash
+    pip install supervisor
+    ```
+2.  **Configure `supervisord.conf`**:
+    You will need to edit `supervisord.conf` to match your project's directory path. Change `/home/user/webapp` to your actual project path.
+3.  **Start the services**:
+    ```bash
+    supervisord -c supervisord.conf
+    ```
+4.  **Check service status**:
+    ```bash
+    supervisorctl -c supervisord.conf status
+    ```
 
 ## 📖 User Guide
 
