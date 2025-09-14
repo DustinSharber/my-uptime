@@ -17,12 +17,8 @@ COPY . .
 EXPOSE 5000
 
 # Define environment variable
-ENV FLASK_APP app.py
+ENV FLASK_APP=app.py
+ENV FLASK_ENV=production
 
-<<<<<<< HEAD
 # Run wsgi.py when the container launches
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "wsgi:app"]
-=======
-# Run app.py when the container launches
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
->>>>>>> ac4280094408dc69e544e82aa223401af24b5b73
