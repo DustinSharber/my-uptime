@@ -4,48 +4,79 @@ WSGI entry point for production deployment with gunicorn
 """
 
 import os
+import sys
 import logging
 from threading import Thread
 from app import create_app
-from app.database import db
 
-# Configure logging for production
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/app.log'),
-        logging.StreamHandler()
-    ]
-)
+# Ensure required directories exist first
+for directory in ['logs', 'data', 'instance']:
+    os.makedirs(directory, exist_ok=True)
 
-# Ensure logs directory exists
-os.makedirs('logs', exist_ok=True)
+# Configure logging for production with fallback to console only
+try:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler('logs/app.log'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+except Exception as e:
+    # Fallback to console logging only if file logging fails
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    print(f"Warning: Could not set up file logging: {e}")
 
-# Create the application
-app = create_app(os.getenv('FLASK_ENV') or 'production')
+logger = logging.getLogger(__name__)
 
 def start_background_services():
     """Start the monitoring service and scheduler"""
     try:
-        from app.monitoring import run_monitoring_service
+        logger.info("Starting background services...")
+        
         from app.scheduler import init_scheduler
         
-        # Initialize scheduler
+        # Initialize scheduler first
         scheduler = init_scheduler()
+        logger.info("Scheduler initialized successfully")
         
         # Start monitoring service in background thread
+        from app.monitoring import run_monitoring_service
         monitoring_thread = Thread(target=run_monitoring_service)
         monitoring_thread.daemon = True
         monitoring_thread.start()
         
-        logging.info("Background services started successfully")
+        logger.info("Background services started successfully")
+        return True
     except Exception as e:
-        logging.error(f"Failed to start background services: {e}")
+        logger.error(f"Failed to start background services: {e}")
+        logger.exception("Full traceback:")
+        return False
+
+# Create the application
+try:
+    app = create_app(os.getenv('FLASK_ENV') or 'production')
+    logger.info("Flask app created successfully")
+except Exception as e:
+    logger.error(f"Failed to create Flask app: {e}")
+    logger.exception("Full traceback:")
+    sys.exit(1)
 
 # Start background services when the module is imported
-with app.app_context():
-    start_background_services()
+try:
+    with app.app_context():
+        success = start_background_services()
+        if not success:
+            logger.warning("Background services failed to start, but continuing with web app only")
+except Exception as e:
+    logger.error(f"Failed to start background services with app context: {e}")
+    logger.exception("Full traceback:")
+    # Don't exit here, allow the web app to still run
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
