@@ -5,30 +5,34 @@ from threading import Lock
 
 class JsonDatabase:
     def __init__(self, data_folder='data'):
+        # Ensure the data folder path is absolute
+        if not os.path.isabs(data_folder):
+            data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', data_folder)
+        
         self.data_folder = data_folder
-        self.monitors_file = os.path.join(data_folder, 'monitors.json')
-        self.checks_file = os.path.join(data_folder, 'checks.json')
-        self.incidents_file = os.path.join(data_folder, 'incidents.json')
-        self.notification_channels_file = os.path.join(data_folder, 'notification_channels.json')
-        self.history_file = os.path.join(data_folder, 'history.json')
-        self.maintenances_file = os.path.join(data_folder, 'maintenances.json')
-        self.status_pages_file = os.path.join(data_folder, 'status_pages.json')
-        self.agent_metrics_file = os.path.join(data_folder, 'agent_metrics.json')
-        self._locks = {
-            self.monitors_file: Lock(),
-            self.checks_file: Lock(),
-            self.incidents_file: Lock(),
-            self.notification_channels_file: Lock(),
-            self.history_file: Lock(),
-            self.maintenances_file: Lock(),
-            self.status_pages_file: Lock(),
-            self.agent_metrics_file: Lock(),
+        self.model_files = {
+            'monitor': os.path.join(data_folder, 'monitors.json'),
+            'check': os.path.join(data_folder, 'checks.json'),
+            'incident': os.path.join(data_folder, 'incidents.json'),
+            'notification_channel': os.path.join(data_folder, 'notification_channels.json'),
+            'history': os.path.join(data_folder, 'history.json'),
+            'maintenance': os.path.join(data_folder, 'maintenances.json'),
+            'status_page': os.path.join(data_folder, 'status_pages.json'),
+            'agent_metric': os.path.join(data_folder, 'agent_metrics.json'),
+            'agent_log': os.path.join(data_folder, 'agent_logs.json'),
+            'tag': os.path.join(data_folder, 'tags.json'),
+            'monitor_tag': os.path.join(data_folder, 'monitor_tags.json'),
+            'command': os.path.join(data_folder, 'commands.json'),
+            'pending_command': os.path.join(data_folder, 'pending_commands.json'),
+            'user': os.path.join(data_folder, 'users.json'),
+            'backup_config': os.path.join(data_folder, 'backup_configs.json'),
         }
+        self._locks = {file_path: Lock() for file_path in self.model_files.values()}
         self.ensure_data_files()
 
     def ensure_data_files(self):
         os.makedirs(self.data_folder, exist_ok=True)
-        for file_path in [self.monitors_file, self.checks_file, self.incidents_file, self.notification_channels_file, self.history_file, self.maintenances_file, self.status_pages_file, self.agent_metrics_file]:
+        for file_path in self.model_files.values():
             if not os.path.exists(file_path):
                 with self._locks[file_path]:
                     if not os.path.exists(file_path):
@@ -49,10 +53,9 @@ class JsonDatabase:
                 json.dump(data, f, indent=2)
 
     def get_all(self, model_name):
-        if model_name == 'history':
-            file_path = self.history_file
-        else:
-            file_path = getattr(self, f"{model_name}s_file")
+        file_path = self.model_files.get(model_name)
+        if not file_path:
+            raise ValueError(f"Unknown model: {model_name}")
         return self.read_data(file_path)
 
     def get_by_id(self, model_name, item_id):
@@ -60,7 +63,9 @@ class JsonDatabase:
         return next((item for item in items if item['id'] == item_id), None)
 
     def add(self, model_name, item_data):
-        file_path = getattr(self, f"{model_name}s_file")
+        file_path = self.model_files.get(model_name)
+        if not file_path:
+            raise ValueError(f"Unknown model: {model_name}")
         items = self.read_data(file_path)
         item_data['id'] = self.get_next_id(items)
         item_data['created_at'] = datetime.utcnow().isoformat()
@@ -70,7 +75,9 @@ class JsonDatabase:
         return item_data
 
     def update(self, model_name, item_id, update_data):
-        file_path = getattr(self, f"{model_name}s_file")
+        file_path = self.model_files.get(model_name)
+        if not file_path:
+            raise ValueError(f"Unknown model: {model_name}")
         items = self.read_data(file_path)
         for item in items:
             if item['id'] == item_id:
@@ -80,7 +87,9 @@ class JsonDatabase:
         self.write_data(file_path, items)
 
     def delete(self, model_name, item_id):
-        file_path = getattr(self, f"{model_name}s_file")
+        file_path = self.model_files.get(model_name)
+        if not file_path:
+            raise ValueError(f"Unknown model: {model_name}")
         items = self.read_data(file_path)
         items = [item for item in items if item['id'] != item_id]
         self.write_data(file_path, items)

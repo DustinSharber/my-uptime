@@ -28,8 +28,22 @@
         </div>
         
         <div class="flex space-x-2">
+            {% if monitor.server_client %}
+            <a href="{{ url_for('main.monitor_metrics', monitor_id=monitor.id) }}"
+               class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                <i class="fas fa-microchip mr-2"></i>System Metrics
+            </a>
+            <a href="{{ url_for('main.monitor_logs', monitor_id=monitor.id) }}"
+               class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                <i class="fas fa-file-alt mr-2"></i>View Logs
+            </a>
+            <a href="{{ url_for('main.monitor_commands', monitor_id=monitor.id) }}"
+               class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700">
+                <i class="fas fa-terminal mr-2"></i>Commands
+            </a>
+            {% endif %}
             <a href="{{ url_for('main.edit_monitor', monitor_id=monitor.id) }}" 
-               class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
+               class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
                 <i class="fas fa-edit mr-2"></i>Edit
             </a>
             <form method="POST" action="{{ url_for('main.toggle_monitor', monitor_id=monitor.id) }}" 
@@ -46,13 +60,44 @@
         </div>
     </div>
 
+    <!-- Admin Notes -->
+    {% if monitor.admin_notes or monitor.admin_notes_text %}
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <i class="fas fa-sticky-note mr-2"></i>Admin Notes
+            </h2>
+        </div>
+        <div class="px-6 py-4 space-y-4">
+            {% if monitor.admin_notes %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Documentation URL</h3>
+                <p class="text-sm text-gray-900 dark:text-gray-100">
+                    <a href="{{ monitor.admin_notes }}" target="_blank" class="text-blue-500 hover:underline">
+                        <i class="fas fa-external-link-alt mr-1"></i>{{ monitor.admin_notes }}
+                    </a>
+                </p>
+            </div>
+            {% endif %}
+            {% if monitor.admin_notes_text %}
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Notes</h3>
+                <div class="text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 p-3 rounded-md whitespace-pre-wrap">{{ monitor.admin_notes_text }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Monitor Info -->
     <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
         <div class="px-6 py-4">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                     <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">URL</h3>
-                    <p class="text-sm text-gray-900 dark:text-gray-100 break-all">{{ monitor.url }}</p>
+                    <p class="text-sm text-gray-900 dark:text-gray-100 break-all">
+                        <a href="{{ monitor.url }}" target="_blank" class="text-blue-500 hover:underline">{{ monitor.url }}</a>
+                    </p>
                 </div>
                 <div>
                     <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Type</h3>
@@ -168,25 +213,23 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
 
-    <!-- Time Range Selector -->
+    <!-- Response Time Chart -->
     <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-                    <i class="fas fa-chart-line mr-2"></i>Response Time History
-                </h2>
-                <div class="space-x-2">
-                    <a href="?hours=1" class="px-3 py-1 text-sm rounded {% if hours == 1 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">1h</a>
-                    <a href="?hours=6" class="px-3 py-1 text-sm rounded {% if hours == 6 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">6h</a>
-                    <a href="?hours=24" class="px-3 py-1 text-sm rounded {% if hours == 24 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">24h</a>
-                    <a href="?hours=168" class="px-3 py-1 text-sm rounded {% if hours == 168 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">7d</a>
-                </div>
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <i class="fas fa-chart-area mr-2"></i>Response Time
+            </h2>
+            <div class="flex space-x-2">
+                <button class="time-range-btn bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-md text-sm" data-range="1h">1H</button>
+                <button class="time-range-btn bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-md text-sm" data-range="12h">12H</button>
+                <button class="time-range-btn bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-md text-sm" data-range="24h">24H</button>
             </div>
         </div>
         <div class="p-6">
-            <canvas id="responseTimeChart" height="100"></canvas>
+            <canvas id="responseTimeChart" data-monitor-id="{{ monitor.id }}"></canvas>
         </div>
     </div>
 
@@ -239,7 +282,7 @@
                                 {{ check.status_code or '-' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                {{ check.checked_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                {{ check.checked_at | format_datetime }}
                             </td>
                             <td class="px-6 py-4 text-sm text-red-600">
                                 {% if check.error_message %}
@@ -287,14 +330,14 @@
                                     Ongoing
                                 </span>
                             {% endif %}
-                            <span class="text-sm text-gray-900 dark:text-gray-100">{{ incident.started_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            <span class="text-sm text-gray-900 dark:text-gray-100">{{ incident.started_at | format_datetime }}</span>
                         </div>
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ incident.error_message or 'Service unavailable' }}</p>
                     </div>
                     <div class="text-right text-sm">
                         <div class="font-medium text-gray-900 dark:text-gray-100">{{ incident.duration_formatted }}</div>
                         {% if incident.ended_at %}
-                            <div class="text-gray-500 dark:text-gray-400">{{ incident.ended_at.strftime('%H:%M') }}</div>
+                            <div class="text-gray-500 dark:text-gray-400">{{ incident.ended_at | format_datetime }}</div>
                         {% endif %}
                     </div>
                 </div>
@@ -304,181 +347,151 @@
     </div>
     {% endif %}
 
-    <!-- System Metrics -->
-    {% if monitor.server_client %}
-    <div class="bg-white dark:bg-gray-800 shadow rounded-lg" id="metrics">
-        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
-                    <i class="fas fa-microchip mr-2"></i>System Metrics
-                </h2>
-                <div class="space-x-2">
-                    <a href="?hours=1#metrics" class="px-3 py-1 text-sm rounded {% if hours == 1 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">1h</a>
-                    <a href="?hours=6#metrics" class="px-3 py-1 text-sm rounded {% if hours == 6 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">6h</a>
-                    <a href="?hours=24#metrics" class="px-3 py-1 text-sm rounded {% if hours == 24 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">24h</a>
-                </div>
-            </div>
-        </div>
-        <div class="p-6 space-y-6">
-            <div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">CPU Usage</h3>
-                <canvas id="cpuChart" height="100"></canvas>
-            </div>
-            <div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">RAM Usage</h3>
-                <canvas id="ramChart" height="100"></canvas>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
-// Load system metrics data
-{% if monitor.server_client %}
-const systemMetrics = {{ system_metrics_json|safe }};
-const metricsData = systemMetrics.reverse(); // Chronological order
+    document.addEventListener('DOMContentLoaded', function () {
+        const chartCanvas = document.getElementById('responseTimeChart');
+        if (!chartCanvas) return;
 
-// CPU Chart
-const cpuCtx = document.getElementById('cpuChart').getContext('2d');
-new Chart(cpuCtx, {
-    type: 'line',
-    data: {
-        datasets: [{
-            label: 'CPU Usage (%)',
-            data: metricsData.map(metric => ({
-                x: new Date(metric.timestamp),
-                y: metric.cpu_percent
-            })),
-            borderColor: 'rgb(234, 88, 12)',
-            backgroundColor: 'rgba(234, 88, 12, 0.1)',
-            fill: true,
-            tension: 0.4
-        }]
-    },
-    options: {
-        responsive: true,
-        scales: {
-            x: {
-                type: 'time',
-                time: {
-                    displayFormats: {
-                        hour: 'HH:mm',
-                        day: 'MMM DD'
+        const monitorId = chartCanvas.dataset.monitorId;
+        const ctx = chartCanvas.getContext('2d');
+        let chart;
+
+        const timeRangeButtons = document.querySelectorAll('.time-range-btn');
+
+        async function fetchChartData(range) {
+            const response = await fetch(`/api/monitor/${monitorId}/history?period=${range}`);
+            const data = await response.json();
+            return data;
+        }
+
+        function createChart(data, range) {
+            if (chart) {
+                chart.destroy();
+            }
+
+            let timeUnit = 'minute';
+            let hours = 1;
+            if (range === '12h') {
+                timeUnit = 'hour';
+                hours = 12;
+            } else if (range === '24h') {
+                timeUnit = 'hour';
+                hours = 24;
+            }
+
+            const now = new Date();
+            const past = new Date();
+            past.setHours(past.getHours() - hours);
+
+            const datasets = [];
+            let currentSegment = [];
+            let lastStatus = null;
+
+            data.forEach((point, index) => {
+                if (lastStatus !== point.is_up && currentSegment.length > 0) {
+                    datasets.push({
+                        label: lastStatus ? 'Up' : 'Down',
+                        data: currentSegment,
+                        borderColor: lastStatus ? 'rgb(74, 222, 128)' : 'rgb(239, 68, 68)',
+                        backgroundColor: lastStatus ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                        fill: true,
+                        tension: 0.1,
+                        parsing: {
+                            xAxisKey: 'timestamp',
+                            yAxisKey: 'response_time'
+                        }
+                    });
+                    currentSegment = [point];
+                } else {
+                    currentSegment.push(point);
+                }
+                lastStatus = point.is_up;
+
+                if (index === data.length - 1 && currentSegment.length > 0) {
+                     datasets.push({
+                        label: lastStatus ? 'Up' : 'Down',
+                        data: currentSegment,
+                        borderColor: lastStatus ? 'rgb(74, 222, 128)' : 'rgb(239, 68, 68)',
+                        backgroundColor: lastStatus ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                        fill: true,
+                        tension: 0.1,
+                        parsing: {
+                            xAxisKey: 'timestamp',
+                            yAxisKey: 'response_time'
+                        }
+                    });
+                }
+            });
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    aspectRatio: 2.67,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: timeUnit,
+                                displayFormats: {
+                                    minute: 'h:mm a',
+                                    hour: 'h a'
+                                }
+                            },
+                            min: past.getTime(),
+                            max: now.getTime(),
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (ms)'
+                            }
+                        }
                     }
                 }
-            },
-            y: {
-                beginAtZero: true,
-                max: 100,
-                title: {
-                    display: true,
-                    text: 'CPU Usage (%)'
-                }
-            }
-        },
-        plugins: {
-            legend: {
-                display: false
-            }
+            });
         }
-    }
-});
 
-// RAM Chart
-const ramCtx = document.getElementById('ramChart').getContext('2d');
-new Chart(ramCtx, {
-    type: 'line',
-    data: {
-        datasets: [{
-            label: 'RAM Usage (%)',
-            data: metricsData.map(metric => ({
-                x: new Date(metric.timestamp),
-                y: metric.ram_percent
-            })),
-            borderColor: 'rgb(147, 51, 234)',
-            backgroundColor: 'rgba(147, 51, 234, 0.1)',
-            fill: true,
-            tension: 0.4
-        }]
-    },
-    options: {
-        responsive: true,
-        scales: {
-            x: {
-                type: 'time',
-                time: {
-                    displayFormats: {
-                        hour: 'HH:mm',
-                        day: 'MMM DD'
-                    }
-                }
-            },
-            y: {
-                beginAtZero: true,
-                max: 100,
-                title: {
-                    display: true,
-                    text: 'RAM Usage (%)'
-                }
-            }
-        },
-        plugins: {
-            legend: {
-                display: false
-            }
+        async function updateChart(range) {
+            const data = await fetchChartData(range);
+            createChart(data, range);
+            timeRangeButtons.forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'dark:bg-gray-700');
+            });
+            document.querySelector(`.time-range-btn[data-range="${range}"]`).classList.add('bg-blue-500', 'text-white');
+            document.querySelector(`.time-range-btn[data-range="${range}"]`).classList.remove('bg-gray-200', 'dark:bg-gray-700');
         }
-    }
-});
-{% endif %}
 
-// Response time chart
-const ctx = document.getElementById('responseTimeChart').getContext('2d');
-const chartChecks = JSON.parse('{{ chart_checks_json|safe }}');
+        timeRangeButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const range = button.dataset.range;
+                updateChart(range);
+            });
+        });
 
-const chartData = chartChecks.map(check => ({
-    x: new Date(check.checked_at),
-    y: check.is_up ? (check.response_time || 0) : null
-}));
-
-new Chart(ctx, {
-    type: 'line',
-    data: {
-        datasets: [{
-            label: 'Response Time (ms)',
-            data: chartData,
-            borderColor: 'rgb(59, 130, 246)',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            fill: true,
-            tension: 0.4
-        }]
-    },
-    options: {
-        responsive: true,
-        scales: {
-            x: {
-                type: 'time',
-                time: {
-                    displayFormats: {
-                        hour: 'HH:mm',
-                        day: 'MMM DD'
-                    }
-                }
-            },
-            y: {
-                beginAtZero: true,
-                title: {
-                    display: true,
-                    text: 'Response Time (ms)'
-                }
-            }
-        },
-        plugins: {
-            legend: {
-                display: false
-            }
-        }
-    }
-});
+        // Initial chart load
+        updateChart('1h');
+    });
 </script>
 {% endblock %}

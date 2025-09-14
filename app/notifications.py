@@ -18,7 +18,7 @@ class NotificationService:
     def send_notification(self, channel: Dict[str, Any], incident_type: str, monitor: Any, incident: Any = None):
         """Send notification through the specified channel."""
         try:
-            channel_type = channel.get('type', '').lower()
+            channel_type = channel.get('channel_type', '').lower()
             
             if channel_type == 'email':
                 return self.send_email_notification(channel, incident_type, monitor, incident)
@@ -37,21 +37,22 @@ class NotificationService:
     def send_email_notification(self, channel: Dict[str, Any], incident_type: str, monitor: Any, incident: Any = None):
         """Send email notification."""
         try:
-            config = json.loads(channel.get('config', '{}'))
+            config = channel.get('config', {})
             
             # Email configuration
-            smtp_server = config.get('smtp_server', 'localhost')
-            smtp_port = config.get('smtp_port', 587)
-            username = config.get('username')
-            password = config.get('password')
-            from_email = config.get('from_email', 'monitor@example.com')
-            to_email = config.get('to_email')
-            use_tls = config.get('use_tls', True)
-            
-            if not to_email:
-                logger.error('No recipient email configured')
+            smtp_server = config.get('smtp_server')
+            smtp_port = config.get('smtp_port')
+            username = config.get('smtp_username')
+            password = config.get('smtp_password')
+            from_email = username or 'monitor@example.com' # Use username as from_email if available
+            to_email = config.get('email_to')
+            use_tls = config.get('use_tls', False)
+            use_ssl = config.get('use_ssl', False)
+
+            if not all([smtp_server, smtp_port, to_email]):
+                logger.error('SMTP server, port, and recipient email are required.')
                 return False
-            
+
             # Create message
             msg = MIMEMultipart()
             msg['From'] = from_email
@@ -63,21 +64,25 @@ class NotificationService:
             msg.attach(MIMEText(body, 'html'))
             
             # Send email
-            if smtp_server == 'localhost':
-                # Use local sendmail if available
-                server = smtplib.SMTP('localhost')
-            else:
-                server = smtplib.SMTP(smtp_server, smtp_port)
+            server = None
+            try:
+                if use_ssl:
+                    server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+                else:
+                    server = smtplib.SMTP(smtp_server, smtp_port)
+                
                 if use_tls:
                     server.starttls()
+                
                 if username and password:
                     server.login(username, password)
-            
-            server.send_message(msg)
-            server.quit()
-            
-            logger.info(f'Email notification sent successfully to {to_email}')
-            return True
+                
+                server.send_message(msg)
+                logger.info(f'Email notification sent successfully to {to_email}')
+                return True
+            finally:
+                if server:
+                    server.quit()
             
         except Exception as e:
             logger.error(f'Error sending email notification: {str(e)}')
@@ -86,7 +91,7 @@ class NotificationService:
     def send_webhook_notification(self, channel: Dict[str, Any], incident_type: str, monitor: Any, incident: Any = None):
         """Send webhook notification."""
         try:
-            config = json.loads(channel.get('config', '{}'))
+            config = channel.get('config', {})
             
             webhook_url = config.get('url')
             method = config.get('method', 'POST').upper()
@@ -144,7 +149,7 @@ class NotificationService:
     def send_slack_notification(self, channel: Dict[str, Any], incident_type: str, monitor: Any, incident: Any = None):
         """Send Slack notification using webhook."""
         try:
-            config = json.loads(channel.get('config', '{}'))
+            config = channel.get('config', {})
             
             webhook_url = config.get('webhook_url')
             if not webhook_url:
@@ -211,13 +216,15 @@ class NotificationService:
             return f'🚨 ALERT: {monitor.name} is DOWN'
         elif incident_type == 'incident_resolved':
             return f'✅ RESOLVED: {monitor.name} is back UP'
+        elif incident_type == 'test':
+            return f'🧪 Test Notification: {monitor.name}'
         else:
             return f'📊 Monitor Update: {monitor.name}'
     
     def _get_email_body(self, incident_type: str, monitor: Any, incident: Any = None) -> str:
         """Generate HTML email body."""
         
-        status_color = 'red' if incident_type == 'incident_started' else 'green' if incident_type == 'incident_resolved' else 'orange'
+        status_color = 'red' if incident_type == 'incident_started' else 'green' if incident_type == 'incident_resolved' else 'blue' if incident_type == 'test' else 'orange'
         
         html = f"""
         <!DOCTYPE html>
