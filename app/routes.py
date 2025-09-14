@@ -788,11 +788,11 @@ def delete_monitor(monitor_id):
         # Also delete associated checks and incidents
         all_checks = db.get_all('check')
         checks_to_keep = [c for c in all_checks if c['monitor_id'] != monitor_id]
-        db.write_data(db.checks_file, checks_to_keep)
+        db.write_data(db.model_files['check'], checks_to_keep)
 
         all_incidents = db.get_all('incident')
         incidents_to_keep = [i for i in all_incidents if i['monitor_id'] != monitor_id]
-        db.write_data(db.incidents_file, incidents_to_keep)
+        db.write_data(db.model_files['incident'], incidents_to_keep)
 
         flash(f'Monitor "{monitor["name"]}" deleted successfully!', 'success')
     except Exception as e:
@@ -1133,11 +1133,11 @@ def clear_incidents():
 
     if range_action == 'keep':
         # Keep the matching incidents, delete the non-matching ones
-        db.write_data(db.incidents_file, matching_incidents)
+        db.write_data(db.model_files['incident'], matching_incidents)
         flash(f'Successfully saved {len(matching_incidents)} incidents and deleted {len(non_matching_incidents)}.', 'success')
     else: # 'delete'
         # Delete the matching incidents, keep the non-matching ones
-        db.write_data(db.incidents_file, non_matching_incidents)
+        db.write_data(db.model_files['incident'], non_matching_incidents)
         flash(f'Successfully deleted {len(matching_incidents)} incidents.', 'success')
 
     return redirect(url_for('main.incidents'))
@@ -1613,7 +1613,7 @@ def delete_tag(tag_id):
 def cleanup_data():
     """Manually trigger a cleanup of old history data."""
     try:
-        history = db.read_data(db.history_file)
+        history = db.read_data(db.model_files['history'])
         # Assuming a 7-day retention period for manual cleanup
         cutoff = datetime.utcnow() - timedelta(days=7)
         
@@ -1621,7 +1621,7 @@ def cleanup_data():
         history_to_keep = [h for h in history if datetime.fromisoformat(h['checked_at']) >= cutoff]
         cleaned_count = original_count - len(history_to_keep)
         
-        db.write_data(db.history_file, history_to_keep)
+        db.write_data(db.model_files['history'], history_to_keep)
         
         flash(f'Successfully cleaned up {cleaned_count} old history records.', 'success')
     except Exception as e:
@@ -1832,12 +1832,12 @@ def import_monitors():
 def reset_data():
     """Reset all data files to their default empty state."""
     try:
-        db.write_data(db.monitors_file, [])
-        db.write_data(db.checks_file, [])
-        db.write_data(db.incidents_file, [])
-        db.write_data(db.history_file, [])
+        db.write_data(db.model_files['monitor'], [])
+        db.write_data(db.model_files['check'], [])
+        db.write_data(db.model_files['incident'], [])
+        db.write_data(db.model_files['history'], [])
         # Optionally, you might want to keep notification channels
-        # db.write_data(db.notification_channels_file, [])
+        # db.write_data(db.model_files['notification_channel'], [])
         
         flash('All application data has been reset.', 'success')
     except Exception as e:

@@ -437,7 +437,7 @@ class MonitoringService:
             checks_to_keep = [c for c in all_checks if parse_timestamp(c['checked_at']) >= cutoff_date_checks]
             
             if len(checks_to_keep) < len(all_checks):
-                db.write_data(db.checks_file, checks_to_keep)
+                db.write_data(db.model_files['check'], checks_to_keep)
                 logger.info(f'Cleaned up {len(all_checks) - len(checks_to_keep)} old checks')
 
             # Clean up incidents
@@ -449,7 +449,7 @@ class MonitoringService:
             ]
 
             if len(incidents_to_keep) < len(all_incidents):
-                db.write_data(db.incidents_file, incidents_to_keep)
+                db.write_data(db.model_files['incident'], incidents_to_keep)
                 logger.info(f'Cleaned up {len(all_incidents) - len(incidents_to_keep)} old incidents')
 
         except Exception as e:
