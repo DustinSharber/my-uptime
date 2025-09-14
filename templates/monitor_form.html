@@ -46,6 +46,45 @@
                            class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The URL or endpoint to monitor</p>
                 </div>
+
+                <div class="mt-4" id="port-settings" style="display: none;">
+                    <label for="port" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Port Number</label>
+                    <input type="number" id="port" name="port"
+                           value="{{ monitor.port if monitor else '' }}"
+                           placeholder="80"
+                           min="1" max="65535"
+                           class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Port number to monitor (1-65535)</p>
+                </div>
+
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Tags</label>
+                    <div id="tag-container" class="mt-1 flex flex-wrap items-center gap-2 p-2 border border-gray-300 dark:border-gray-600 rounded-md min-h-[42px]">
+                        <!-- Selected tags will be dynamically added here -->
+                    </div>
+                    <input type="hidden" id="tags-hidden-input" name="tags">
+
+                    <div class="mt-2 flex items-center gap-2">
+                        <input type="text" id="tag-input" list="existing-tags-datalist" placeholder="Add or create a tag" class="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
+                        <input type="color" id="tag-color-picker" value="#6B7280" class="h-10 w-12 p-1 border-gray-300 dark:border-gray-600 rounded-md cursor-pointer" title="Select color for new tag">
+                        <button type="button" id="add-tag-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm">Add</button>
+                    </div>
+                    
+                    <datalist id="existing-tags-datalist">
+                        {% for tag in all_tags %}
+                            <option value="{{ tag.name }}" data-color="{{ tag.color }}"></option>
+                        {% endfor %}
+                    </datalist>
+
+                    <div id="existing-tags-container" class="mt-2 flex flex-wrap gap-2">
+                        <span class="text-sm text-gray-500 dark:text-gray-400">Existing tags:</span>
+                        {% for tag in all_tags %}
+                            <button type="button" class="existing-tag-btn text-xs px-2 py-1 rounded-full" style="background-color: {{ tag.color }}; color: {{ get_text_color(tag.color) }};" data-tag-name="{{ tag.name }}" data-tag-color="{{ tag.color }}">
+                                {{ tag.name }}
+                            </button>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
             
             <!-- HTTP Settings -->
@@ -82,7 +121,7 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty to skip text verification</p>
                 </div>
 
-                <div class="mt-4">
+                <div class="mt-4" id="ssl-settings">
                     <label class="flex items-center">
                         <input type="checkbox" id="verify_ssl" name="verify_ssl" {% if monitor and monitor.verify_ssl %}checked{% endif %}
                                class="rounded border-gray-300 dark:border-gray-600 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
@@ -90,7 +129,7 @@
                     </label>
                 </div>
 
-                <div class="mt-4">
+                <div class="mt-4" id="cert-expiry-settings">
                     <label class="flex items-center">
                         <input type="checkbox" id="check_cert_expiry" name="check_cert_expiry" {% if monitor and monitor.check_cert_expiry %}checked{% endif %}
                                  class="rounded border-gray-300 dark:border-gray-600 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
@@ -150,11 +189,18 @@
                 <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Admin Notes</h3>
                 <div>
                     <label for="admin_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Admin Notes (URL)</label>
-                    <input type="url" id="admin_notes" name="admin_notes"
+                    <input type="text" id="admin_notes" name="admin_notes"
                            value="{{ monitor.admin_notes if monitor else '' }}"
                            placeholder="https://example.com/notes"
                            class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">URL to SharePoint or other internal notes.</p>
+                </div>
+                <div class="mt-4">
+                    <label for="admin_notes_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Admin Notes (Text)</label>
+                    <textarea id="admin_notes_text" name="admin_notes_text" rows="4"
+                              placeholder="Internal notes, documentation, or any relevant information about this monitor..."
+                              class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.admin_notes_text if monitor else '' }}</textarea>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Free-form text notes that will be saved with this monitor.</p>
                 </div>
                 <div class="mt-4">
                     <label class="flex items-center">
@@ -164,10 +210,20 @@
                     </label>
                     {% if monitor %}
                     <div id="agent-download" class="mt-2 pl-6" style="display: none;">
-                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id) }}" class="text-blue-600 hover:text-blue-800">
-                            <i class="fas fa-download mr-1"></i>Download Agent
+                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='windows') }}" class="text-blue-600 hover:text-blue-800">
+                            <i class="fa-brands fa-windows mr-1"></i>Download Agent (Windows)
+                        </a>
+                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='linux') }}" class="text-blue-600 hover:text-blue-800 ml-4">
+                            <i class="fa-brands fa-linux mr-1"></i>Download Agent (Linux)
                         </a>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Download this monitor's system metrics agent</p>
+                        <div class="mt-4">
+                            <label for="log_files" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Log Files to Monitor</label>
+                            <textarea id="log_files" name="log_files" rows="3"
+                                      placeholder="/var/log/app.log,/var/log/syslog"
+                                      class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.log_files or '' }}</textarea>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated list of log file paths to monitor.</p>
+                        </div>
                     </div>
                     {% endif %}
                 </div>
@@ -202,28 +258,162 @@
 </div>
 
 <script>
-// Show/hide request body field based on HTTP method
-document.getElementById('method').addEventListener('change', function() {
-    const bodyDiv = document.getElementById('request-body');
-    if (this.value === 'POST' || this.value === 'PUT') {
-        bodyDiv.style.display = 'block';
-    } else {
-        bodyDiv.style.display = 'none';
-    }
-});
-
-// Show/hide HTTP settings based on monitor type
-document.getElementById('monitor_type').addEventListener('change', function() {
-    const httpSettings = document.getElementById('http-settings');
-    if (this.value === 'http' || this.value === 'https') {
-        httpSettings.style.display = 'block';
-    } else {
-        httpSettings.style.display = 'none';
-    }
-});
-
-// Initialize form
 document.addEventListener('DOMContentLoaded', function() {
+    const tagContainer = document.getElementById('tag-container');
+    const tagInput = document.getElementById('tag-input');
+    const addTagBtn = document.getElementById('add-tag-btn');
+    const colorPicker = document.getElementById('tag-color-picker');
+    const hiddenInput = document.getElementById('tags-hidden-input');
+    const existingTagsDatalist = document.getElementById('existing-tags-datalist');
+    const existingTagsContainer = document.getElementById('existing-tags-container');
+
+    let selectedTags = [];
+
+    function getTextColor(hexColor) {
+        const r = parseInt(hexColor.substr(1, 2), 16);
+        const g = parseInt(hexColor.substr(3, 2), 16);
+        const b = parseInt(hexColor.substr(5, 2), 16);
+        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+        return (yiq >= 128) ? 'black' : 'white';
+    }
+
+    function updateHiddenInput() {
+        hiddenInput.value = JSON.stringify(selectedTags);
+    }
+
+    function renderTags() {
+        tagContainer.innerHTML = '';
+        selectedTags.forEach(tag => {
+            const tagEl = document.createElement('span');
+            tagEl.className = 'flex items-center text-sm font-medium px-3 py-1 rounded-full';
+            tagEl.style.backgroundColor = tag.color;
+            tagEl.style.color = getTextColor(tag.color);
+            tagEl.innerHTML = `
+                ${tag.name}
+                <button type="button" class="ml-2 text-lg leading-none" data-tag-name="${tag.name}">&times;</button>
+            `;
+            tagContainer.appendChild(tagEl);
+        });
+        updateHiddenInput();
+    }
+
+    function addTag(name, color) {
+        name = name.trim().toUpperCase();
+        if (name && !selectedTags.some(t => t.name.toUpperCase() === name)) {
+            selectedTags.push({ name, color });
+            renderTags();
+        }
+        tagInput.value = '';
+        tagInput.focus();
+    }
+
+    tagContainer.addEventListener('click', function(e) {
+        if (e.target.tagName === 'BUTTON') {
+            const tagName = e.target.getAttribute('data-tag-name');
+            selectedTags = selectedTags.filter(t => t.name !== tagName);
+            renderTags();
+        }
+    });
+
+    addTagBtn.addEventListener('click', function() {
+        const tagName = tagInput.value;
+        const tagColor = colorPicker.value;
+        addTag(tagName, tagColor);
+    });
+
+    tagInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const tagName = tagInput.value;
+            const existingOption = Array.from(existingTagsDatalist.options).find(opt => opt.value.toUpperCase() === tagName.toUpperCase());
+            const tagColor = existingOption ? existingOption.getAttribute('data-color') : colorPicker.value;
+            addTag(tagName, tagColor);
+        }
+    });
+
+    tagInput.addEventListener('input', function() {
+        const tagName = tagInput.value.toUpperCase();
+        const existingOption = Array.from(existingTagsDatalist.options).find(opt => opt.value.toUpperCase() === tagName);
+        if (existingOption) {
+            colorPicker.value = existingOption.getAttribute('data-color');
+        }
+    });
+
+    existingTagsContainer.addEventListener('click', function(e) {
+        if (e.target.classList.contains('existing-tag-btn')) {
+            const name = e.target.getAttribute('data-tag-name');
+            const color = e.target.getAttribute('data-tag-color');
+            addTag(name, color);
+        }
+    });
+
+    // Initialize with existing monitor tags
+    const initialTags = {{ monitor_tags_json | safe if monitor_tags_json else '[]' }};
+    initialTags.forEach(tag => {
+        if (typeof tag === 'string') { // Handle old string format for backward compatibility
+            addTag(tag, '#6B7280');
+        } else {
+            addTag(tag.name, tag.color);
+        }
+    });
+
+    // Ensure the hidden input is initialized even if there are no tags
+    updateHiddenInput();
+
+    // Show/hide request body field based on HTTP method
+    document.getElementById('method').addEventListener('change', function() {
+        const bodyDiv = document.getElementById('request-body');
+        if (this.value === 'POST' || this.value === 'PUT') {
+            bodyDiv.style.display = 'block';
+        } else {
+            bodyDiv.style.display = 'none';
+        }
+    });
+
+    // Show/hide HTTP settings, SSL settings, and port settings based on monitor type
+    document.getElementById('monitor_type').addEventListener('change', function() {
+        const httpSettings = document.getElementById('http-settings');
+        const sslSettings = document.getElementById('ssl-settings');
+        const certExpirySettings = document.getElementById('cert-expiry-settings');
+        const portSettings = document.getElementById('port-settings');
+        
+        if (this.value === 'http' || this.value === 'https') {
+            httpSettings.style.display = 'block';
+            portSettings.style.display = 'none';
+            // Show SSL settings only for HTTPS
+            if (this.value === 'https') {
+                sslSettings.style.display = 'block';
+                certExpirySettings.style.display = 'block';
+            } else {
+                // Hide SSL settings for HTTP
+                sslSettings.style.display = 'none';
+                certExpirySettings.style.display = 'none';
+            }
+        } else if (this.value === 'port') {
+            httpSettings.style.display = 'none';
+            portSettings.style.display = 'block';
+        } else {
+            httpSettings.style.display = 'none';
+            portSettings.style.display = 'none';
+        }
+    });
+
+    // Add URL validation and auto monitor type detection
+    document.getElementById('url').addEventListener('input', function() {
+        const url = this.value.trim();
+        const monitorTypeSelect = document.getElementById('monitor_type');
+        
+        if (url) {
+            if (url.toLowerCase().startsWith('https://')) {
+                monitorTypeSelect.value = 'https';
+                monitorTypeSelect.dispatchEvent(new Event('change'));
+            } else if (url.toLowerCase().startsWith('http://')) {
+                monitorTypeSelect.value = 'http';
+                monitorTypeSelect.dispatchEvent(new Event('change'));
+            }
+        }
+    });
+
     // Trigger change events to set initial state
     document.getElementById('method').dispatchEvent(new Event('change'));
     document.getElementById('monitor_type').dispatchEvent(new Event('change'));

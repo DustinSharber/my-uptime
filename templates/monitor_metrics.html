@@ -1,156 +1,144 @@
 {% extends "base.html" %}
 
+{% block title %}{{ monitor.name }} - System Metrics{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="flex items-center justify-between mb-6">
-        <h1 class="text-2xl font-bold">{{ monitor.name }} - System Metrics</h1>
-        <div class="flex gap-2">
-            <a href="{{ url_for('main.monitor_detail', monitor_id=monitor.id) }}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
-                Back to Monitor
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+            <a href="{{ url_for('main.monitor_detail', monitor_id=monitor.id) }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
+                <i class="fas fa-arrow-left"></i>
             </a>
-            <div class="relative">
-                <select id="timeRange" class="bg-white border border-gray-300 rounded px-4 py-2 appearance-none cursor-pointer" 
-                        onchange="window.location.href = '{{ url_for('main.monitor_metrics', monitor_id=monitor.id) }}?hours=' + this.value">
-                    <option value="24" {% if hours == 24 %}selected{% endif %}>Last 24 hours</option>
-                    <option value="48" {% if hours == 48 %}selected{% endif %}>Last 48 hours</option>
-                    <option value="72" {% if hours == 72 %}selected{% endif %}>Last 72 hours</option>
-                    <option value="168" {% if hours == 168 %}selected{% endif %}>Last 7 days</option>
-                </select>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ monitor.name }} - System Metrics</h1>
+        </div>
+    </div>
+
+    <!-- Time Range Selector -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    <i class="fas fa-chart-line mr-2"></i>System Metrics
+                </h2>
+                <div class="space-x-2">
+                    <a href="?hours=1" class="px-3 py-1 text-sm rounded {% if hours == 1 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">1h</a>
+                    <a href="?hours=6" class="px-3 py-1 text-sm rounded {% if hours == 6 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">6h</a>
+                    <a href="?hours=24" class="px-3 py-1 text-sm rounded {% if hours == 24 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">24h</a>
+                    <a href="?hours=168" class="px-3 py-1 text-sm rounded {% if hours == 168 %}bg-blue-100 text-blue-700{% else %}text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700{% endif %}">7d</a>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- CPU Usage Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold mb-4">CPU Usage</h2>
-            <canvas id="cpuChart"></canvas>
+    <!-- Current Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-microchip text-2xl text-orange-500"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Current CPU</dt>
+                            <dd class="text-lg font-medium text-gray-900 dark:text-gray-100" id="currentCpu">-%</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-memory text-2xl text-purple-500"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Current RAM</dt>
+                            <dd class="text-lg font-medium text-gray-900 dark:text-gray-100" id="currentRam">-%</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-hdd text-2xl text-blue-500"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Disk Usage (Avg)</dt>
+                            <dd class="text-lg font-medium text-gray-900 dark:text-gray-100" id="currentDisk">-%</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+            <div class="p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-network-wired text-2xl text-green-500"></i>
+                    </div>
+                    <div class="ml-5 w-0 flex-1">
+                        <dl>
+                            <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Total I/O</dt>
+                            <dd class="text-lg font-medium text-gray-900 dark:text-gray-100" id="currentNetwork">-</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metric Charts -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">CPU Usage</h3>
+            <div style="height: 200px">
+                <canvas id="cpuChart"></canvas>
+            </div>
         </div>
         
-        <!-- Memory Usage Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold mb-4">Memory Usage</h2>
-            <canvas id="memoryChart"></canvas>
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Memory Usage</h3>
+            <div style="height: 200px">
+                <canvas id="memoryChart"></canvas>
+            </div>
         </div>
         
-        <!-- Disk Usage Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold mb-4">Disk Usage</h2>
-            <canvas id="diskChart"></canvas>
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Disk Usage</h3>
+            <div style="height: 200px">
+                <canvas id="diskChart"></canvas>
+            </div>
         </div>
         
-        <!-- Network Usage Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-lg font-semibold mb-4">Network Usage</h2>
-            <canvas id="networkChart"></canvas>
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Network Usage</h3>
+            <div style="height: 200px">
+                <canvas id="networkChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const metrics = {{ metrics_json | safe }};
-    const timestamps = metrics.map(m => new Date(m.timestamp * 1000).toLocaleString());
-    
-    // CPU Chart
-    new Chart(document.getElementById('cpuChart'), {
-        type: 'line',
-        data: {
-            labels: timestamps,
-            datasets: [{
-                label: 'CPU Usage %',
-                data: metrics.map(m => m.cpu_percent),
-                borderColor: 'rgb(75, 192, 192)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 100
-                }
-            }
-        }
-    });
-    
-    // Memory Chart
-    new Chart(document.getElementById('memoryChart'), {
-        type: 'line',
-        data: {
-            labels: timestamps,
-            datasets: [{
-                label: 'Memory Usage %',
-                data: metrics.map(m => m.memory_percent),
-                borderColor: 'rgb(255, 99, 132)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 100
-                }
-            }
-        }
-    });
-    
-    // Disk Chart
-    new Chart(document.getElementById('diskChart'), {
-        type: 'line',
-        data: {
-            labels: timestamps,
-            datasets: [{
-                label: 'Disk Usage %',
-                data: metrics.map(m => m.disk_percent),
-                borderColor: 'rgb(54, 162, 235)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    max: 100
-                }
-            }
-        }
-    });
-    
-    // Network Chart
-    new Chart(document.getElementById('networkChart'), {
-        type: 'line',
-        data: {
-            labels: timestamps,
-            datasets: [
-                {
-                    label: 'Bytes Sent (MB)',
-                    data: metrics.map(m => m.bytes_sent / (1024 * 1024)),
-                    borderColor: 'rgb(153, 102, 255)',
-                    tension: 0.1
-                },
-                {
-                    label: 'Bytes Received (MB)',
-                    data: metrics.map(m => m.bytes_recv / (1024 * 1024)),
-                    borderColor: 'rgb(255, 159, 64)',
-                    tension: 0.1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
+    updateMetricsCharts(metrics);
 });
 </script>
 {% endblock %}

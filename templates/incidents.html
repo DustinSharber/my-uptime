@@ -5,28 +5,77 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
-    <div class="flex items-center justify-between">
-        <h1 class="text-3xl font-bold text-gray-900">
-            <i class="fas fa-exclamation-triangle mr-2"></i>Incidents
-        </h1>
+    <div class="space-y-4">
+        <div class="flex items-center justify-between">
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+                <i class="fas fa-exclamation-triangle mr-2"></i>Incidents
+            </h1>
+        </div>
+        
+        <!-- Filter Controls -->
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+            <form id="filter-form" class="flex flex-wrap gap-4" method="GET">
+                <!-- Status Filter -->
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
+                    <select name="status" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
+                        <option value="">All</option>
+                        <option value="ongoing" {% if request.args.get('status') == 'ongoing' %}selected{% endif %}>Ongoing</option>
+                        <option value="resolved" {% if request.args.get('status') == 'resolved' %}selected{% endif %}>Resolved</option>
+                    </select>
+                </div>
+
+                <!-- Time Range Filters -->
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Time Range:</label>
+                        <select name="time_range" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
+                            <option value="">All Time</option>
+                            <option value="12h" {% if request.args.get('time_range') == '12h' %}selected{% endif %}>12 Hours</option>
+                            <option value="24h" {% if request.args.get('time_range') == '24h' %}selected{% endif %}>24 Hours</option>
+                            <option value="7d" {% if request.args.get('time_range') == '7d' %}selected{% endif %}>7 Days</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Action:</label>
+                        <select name="range_action" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
+                            <option value="keep" {% if request.args.get('range_action') == 'keep' %}selected{% endif %}>Keep</option>
+                            <option value="delete" {% if request.args.get('range_action') == 'delete' %}selected{% endif %}>Delete</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Apply & Clear Buttons -->
+                <div class="flex items-center space-x-2">
+                    <button type="submit" class="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">
+                        <i class="fas fa-filter mr-1"></i>Apply
+                    </button>
+                    <a id="action-button" href="#" 
+                       class="px-3 py-1 rounded-md text-sm text-white">
+                        <i id="action-icon" class="fas"></i>
+                        <span id="action-text"></span>
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Incidents List -->
-    <div class="bg-white shadow rounded-lg">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
         {% if incidents.items %}
-            <div class="divide-y divide-gray-200">
+            <div class="divide-y divide-gray-200 dark:divide-gray-700">
                 {% for incident in incidents.items %}
                 <div class="p-6">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-4">
                             <!-- Status Badge -->
                             {% if incident.is_resolved %}
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400">
                                     <i class="fas fa-check-circle mr-1"></i>
                                     Resolved
                                 </span>
                             {% else %}
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-400">
                                     <i class="fas fa-exclamation-circle mr-1"></i>
                                     Ongoing
                                 </span>
@@ -34,25 +83,25 @@
                             
                             <!-- Incident Info -->
                             <div>
-                                <h3 class="text-lg font-medium text-gray-900">
+                                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
                                     <a href="{{ url_for('main.monitor_detail', monitor_id=incident.monitor_id) }}" 
-                                       class="hover:text-blue-600">
+                                       class="hover:text-blue-600 dark:hover:text-blue-400">
                                         {{ incident.monitor.name }}
                                     </a>
                                 </h3>
-                                <p class="text-sm text-gray-500">{{ incident.monitor.url }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ incident.monitor.url }}</p>
                             </div>
                         </div>
                         
                         <!-- Duration -->
                         <div class="text-right">
-                            <div class="text-lg font-medium text-gray-900">
+                            <div class="text-lg font-medium text-gray-900 dark:text-white">
                                 {{ incident.duration_formatted }}
                             </div>
-                            <div class="text-sm text-gray-500">
-                                {{ incident.started_at.strftime('%Y-%m-%d %H:%M') }}
+                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ incident.started_at | format_datetime }}
                                 {% if incident.ended_at %}
-                                    - {{ incident.ended_at.strftime('%H:%M') }}
+                                    - {{ incident.ended_at | format_datetime }}
                                 {% endif %}
                             </div>
                         </div>
@@ -60,8 +109,8 @@
                     
                     <!-- Error Message -->
                     {% if incident.error_message %}
-                    <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                        <p class="text-sm text-red-800">
+                    <div class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                        <p class="text-sm text-red-800 dark:text-red-400">
                             <i class="fas fa-exclamation-triangle mr-1"></i>
                             {{ incident.error_message }}
                         </p>
@@ -70,18 +119,18 @@
                     
                     <!-- Timeline -->
                     <div class="mt-4">
-                        <div class="flex items-center text-sm text-gray-600 space-x-4">
+                        <div class="flex items-center text-sm text-gray-600 dark:text-gray-400 space-x-4">
                             <div class="flex items-center">
                                 <i class="fas fa-play-circle mr-1"></i>
-                                <span>Started: {{ incident.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                                <span>Started: {{ incident.started_at | format_datetime }}</span>
                             </div>
                             {% if incident.ended_at %}
                             <div class="flex items-center">
                                 <i class="fas fa-stop-circle mr-1"></i>
-                                <span>Ended: {{ incident.ended_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                                <span>Ended: {{ incident.ended_at | format_datetime }}</span>
                             </div>
                             {% else %}
-                            <div class="flex items-center text-red-600">
+                            <div class="flex items-center text-red-600 dark:text-red-400">
                                 <i class="fas fa-clock mr-1"></i>
                                 <span>Ongoing for {{ incident.duration_formatted }}</span>
                             </div>
@@ -94,24 +143,24 @@
 
             <!-- Pagination -->
             {% if incidents.pages > 1 %}
-            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
                 <div class="flex-1 flex justify-between sm:hidden">
                     {% if incidents.has_prev %}
-                        <a href="{{ url_for('main.incidents', page=incidents.prev_num) }}" 
-                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        <a href="{{ url_for('main.incidents', page=incidents.prev_num, status=request.args.get('status'), time_range=request.args.get('time_range'), range_action=request.args.get('range_action', 'keep')) }}" 
+                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                             Previous
                         </a>
                     {% endif %}
                     {% if incidents.has_next %}
-                        <a href="{{ url_for('main.incidents', page=incidents.next_num) }}" 
-                           class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        <a href="{{ url_for('main.incidents', page=incidents.next_num, status=request.args.get('status'), time_range=request.args.get('time_range'), range_action=request.args.get('range_action', 'keep')) }}" 
+                           class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                             Next
                         </a>
                     {% endif %}
                 </div>
                 <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm text-gray-700">
+                        <p class="text-sm text-gray-700 dark:text-gray-300">
                             Showing {{ incidents.per_page * (incidents.page - 1) + 1 }} to 
                             {{ incidents.per_page * (incidents.page - 1) + incidents.items|length }} of 
                             {{ incidents.total }} results
@@ -120,8 +169,8 @@
                     <div>
                         <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                             {% if incidents.has_prev %}
-                                <a href="{{ url_for('main.incidents', page=incidents.prev_num) }}" 
-                                   class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <a href="{{ url_for('main.incidents', page=incidents.prev_num, status=request.args.get('status'), time_range=request.args.get('time_range'), range_action=request.args.get('range_action', 'keep')) }}" 
+                                   class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600">
                                     <i class="fas fa-chevron-left"></i>
                                 </a>
                             {% endif %}
@@ -129,25 +178,25 @@
                             {% for page_num in incidents.iter_pages() %}
                                 {% if page_num %}
                                     {% if page_num != incidents.page %}
-                                        <a href="{{ url_for('main.incidents', page=page_num) }}" 
-                                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                <a href="{{ url_for('main.incidents', page=page_num, status=request.args.get('status'), time_range=request.args.get('time_range'), range_action=request.args.get('range_action', 'keep')) }}" 
+                                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
                                             {{ page_num }}
                                         </a>
                                     {% else %}
-                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-blue-50 text-sm font-medium text-blue-600">
+                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-50 dark:bg-blue-900 text-sm font-medium text-blue-600 dark:text-blue-300">
                                             {{ page_num }}
                                         </span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-400">
                                         ...
                                     </span>
                                 {% endif %}
                             {% endfor %}
                             
                             {% if incidents.has_next %}
-                                <a href="{{ url_for('main.incidents', page=incidents.next_num) }}" 
-                                   class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <a href="{{ url_for('main.incidents', page=incidents.next_num, status=request.args.get('status'), time_range=request.args.get('time_range'), range_action=request.args.get('range_action', 'keep')) }}" 
+                                   class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600">
                                     <i class="fas fa-chevron-right"></i>
                                 </a>
                             {% endif %}
@@ -159,11 +208,48 @@
 
         {% else %}
             <div class="px-6 py-12 text-center">
-                <i class="fas fa-check-circle text-4xl text-green-300 mb-4"></i>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">No incidents recorded</h3>
-                <p class="text-gray-500">All your monitors are running smoothly. Incidents will appear here when services go down.</p>
+                <i class="fas fa-check-circle text-4xl text-green-300 dark:text-green-600 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No incidents recorded</h3>
+                <p class="text-gray-500 dark:text-gray-400">All your monitors are running smoothly. Incidents will appear here when services go down.</p>
             </div>
         {% endif %}
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const actionSelect = document.querySelector('select[name="range_action"]');
+    const actionButton = document.getElementById('action-button');
+    const actionIcon = document.getElementById('action-icon');
+    const actionText = document.getElementById('action-text');
+
+    function updateActionButton() {
+        const status = document.querySelector('select[name="status"]').value;
+        const timeRange = document.querySelector('select[name="time_range"]').value;
+        const action = actionSelect.value;
+
+        const url = new URL("{{ url_for('main.clear_incidents', _external=True) }}");
+        url.searchParams.set('status', status);
+        url.searchParams.set('time_range', timeRange);
+        url.searchParams.set('range_action', action);
+        actionButton.href = url.toString();
+
+        if (action === 'keep') {
+            actionText.textContent = 'Save';
+            actionButton.className = 'px-3 py-1 rounded-md text-sm text-white bg-green-600 hover:bg-green-700';
+            actionIcon.className = 'fas fa-save mr-1';
+            actionButton.onclick = () => confirm('Are you sure you want to delete all incidents NOT matching the filter?');
+        } else { // delete
+            actionText.textContent = 'Delete';
+            actionButton.className = 'px-3 py-1 rounded-md text-sm text-white bg-red-600 hover:bg-red-700';
+            actionIcon.className = 'fas fa-trash-alt mr-1';
+            actionButton.onclick = () => confirm('Are you sure you want to delete all incidents MATCHING the filter?');
+        }
+    }
+
+    actionSelect.addEventListener('change', updateActionButton);
+    // Initial setup
+    updateActionButton();
+});
+</script>
 {% endblock %}

@@ -11,6 +11,7 @@ from app import create_app
 from app.database import db
 from app.models import Monitor, MonitorCheck, Incident, NotificationChannel, Maintenance
 from app.notifications import notification_service
+from app.utils import parse_timestamp
 from threading import Thread
 import schedule
 import json
@@ -42,7 +43,7 @@ class MonitoringService:
             'status_code': None,
             'error_message': None,
             'response_text': None,
-            'checked_at': datetime.utcnow().isoformat(),
+            'checked_at': datetime.now(pytz.utc).isoformat(),
             'cert_expires_in_days': None
         }
         
@@ -254,8 +255,8 @@ class MonitoringService:
     def update_history(self, check_result):
         """Update the history file with the latest check."""
         try:
-            history = db.read_data(db.history_file)
-            now = datetime.utcnow()
+            history = db.get_all('history')
+            now = datetime.now(pytz.utc)
             
             # Add new check
             history.append({
@@ -267,16 +268,20 @@ class MonitoringService:
             
             # Prune old data (older than 7 days)
             cutoff = now - timedelta(days=7)
-            history = [h for h in history if datetime.fromisoformat(h['checked_at']) >= cutoff]
+            history_to_keep = []
+            for h in history:
+                checked_at = parse_timestamp(h.get('checked_at'))
+                if checked_at and checked_at >= cutoff:
+                    history_to_keep.append(h)
             
-            db.write_data(db.history_file, history)
+            db.write_data(db.model_files['history'], history_to_keep)
         except Exception as e:
             logger.error(f"Error updating history file: {e}")
     
     def is_in_maintenance(self):
         """Check if there is an active global maintenance window."""
         schedules_data = db.get_all('maintenance')
-        now = datetime.utcnow()
+        now = datetime.now(pytz.utc)
         for s_data in schedules_data:
             schedule = Maintenance(**s_data)
             if schedule.is_active:
@@ -302,7 +307,7 @@ class MonitoringService:
                 # Create new incident
                 incident_data = {
                     'monitor_id': monitor.id,
-                    'started_at': datetime.utcnow().isoformat(),
+                    'started_at': datetime.now(pytz.utc).isoformat(),
                     'error_message': error_message,
                     'is_resolved': False
                 }
@@ -311,12 +316,15 @@ class MonitoringService:
                 
                 # Send notifications for new incident
                 self.send_notifications('incident_started', monitor, Incident(**new_incident))
+
+                # Trigger 'on_down' commands
+                self.trigger_on_down_commands(monitor.id)
                 
         else:  # Monitor is up
             if latest_incident_data:
                 # Resolve existing incident
-                ended_at = datetime.utcnow()
-                started_at = datetime.fromisoformat(latest_incident_data['started_at'])
+                ended_at = datetime.now(pytz.utc)
+                started_at = parse_timestamp(latest_incident_data['started_at'])
                 duration = int((ended_at - started_at).total_seconds())
                 
                 update_data = {
@@ -331,11 +339,26 @@ class MonitoringService:
                 
                 # Send notifications for incident resolution
                 self.send_notifications('incident_resolved', monitor, resolved_incident)
+
+    def trigger_on_down_commands(self, monitor_id):
+        """Trigger commands with 'on_down' trigger for a given monitor."""
+        all_commands = db.get_all('command')
+        for cmd_data in all_commands:
+            if cmd_data.get('monitor_id') == monitor_id and cmd_data.get('trigger') == 'on_down':
+                command = Command(**cmd_data)
+                pending_command_data = {
+                    'command_id': command.id,
+                    'monitor_id': monitor_id,
+                    'script': command.script,
+                    'status': 'pending',
+                }
+                db.add('pending_command', pending_command_data)
+                logger.info(f"Queued 'on_down' command '{command.name}' for monitor {monitor_id}")
     
     def run_checks(self):
         """Run checks for all active monitors that are due for checking."""
         try:
-            now = datetime.utcnow()
+            now = datetime.now(pytz.utc)
             all_monitors_data = db.get_all('monitor')
             active_monitors = [Monitor(**m) for m in all_monitors_data if m.get('is_active', True)]
             all_checks_data = db.get_all('check')
@@ -345,7 +368,7 @@ class MonitoringService:
                 monitor_checks = [c for c in all_checks_data if c['monitor_id'] == monitor.id]
                 last_check = max(monitor_checks, key=lambda c: c['checked_at'], default=None)
                 
-                if not last_check or (now - datetime.fromisoformat(last_check['checked_at'])).total_seconds() >= monitor.interval:
+                if not last_check or (now - parse_timestamp(last_check['checked_at'])).total_seconds() >= monitor.interval:
                     logger.info(f'Checking monitor: {monitor.name}')
                     
                     # Run the check
@@ -362,27 +385,30 @@ class MonitoringService:
             logger.error(f'Error in run_checks: {str(e)}')
     
     def send_notifications(self, incident_type: str, monitor: Monitor, incident: Incident = None):
-        """Send notifications through all active channels."""
+        """Send notifications through all active channels associated with the monitor."""
         try:
-            # Get active notification channels
             all_channels_data = db.get_all('notification_channel')
-            channels = [NotificationChannel(**c) for c in all_channels_data if c.get('is_active', True)]
             
-            if not channels:
-                logger.debug('No active notification channels configured')
+            # Filter for active channels that are associated with this monitor
+            relevant_channels = [
+                NotificationChannel(**c) for c in all_channels_data 
+                if c.get('is_active', True) and monitor.id in c.get('monitors', [])
+            ]
+            
+            if not relevant_channels:
+                logger.debug(f'No active notification channels configured for monitor: {monitor.name}')
                 return
             
-            for channel in channels:
+            logger.info(f"Found {len(relevant_channels)} relevant channel(s) for monitor '{monitor.name}'")
+
+            for channel in relevant_channels:
                 try:
-                    # Parse channel configuration
-                    config = json.loads(channel.config) if channel.config else {}
-                    
                     # Prepare channel data for notification service
                     channel_data = {
                         'id': channel.id,
                         'name': channel.name,
-                        'type': channel.type,
-                        'config': channel.config
+                        'channel_type': channel.channel_type,
+                        'config': channel.get_config()
                     }
                     
                     # Send notification
@@ -391,9 +417,9 @@ class MonitoringService:
                     )
                     
                     if success:
-                        logger.info(f'Notification sent successfully via {channel.type} channel: {channel.name}')
+                        logger.info(f'Notification sent successfully via {channel.channel_type} channel: {channel.name}')
                     else:
-                        logger.error(f'Failed to send notification via {channel.type} channel: {channel.name}')
+                        logger.error(f'Failed to send notification via {channel.channel_type} channel: {channel.name}')
                         
                 except Exception as e:
                     logger.error(f'Error sending notification via channel {channel.name}: {str(e)}')
@@ -406,20 +432,20 @@ class MonitoringService:
         try:
             # Clean up checks
             keep_history_days = self.app.config.get('KEEP_HISTORY_DAYS', 30)
-            cutoff_date_checks = datetime.utcnow() - timedelta(days=keep_history_days)
+            cutoff_date_checks = datetime.now(pytz.utc) - timedelta(days=keep_history_days)
             all_checks = db.get_all('check')
-            checks_to_keep = [c for c in all_checks if datetime.fromisoformat(c['checked_at']) >= cutoff_date_checks]
+            checks_to_keep = [c for c in all_checks if parse_timestamp(c['checked_at']) >= cutoff_date_checks]
             
             if len(checks_to_keep) < len(all_checks):
                 db.write_data(db.checks_file, checks_to_keep)
                 logger.info(f'Cleaned up {len(all_checks) - len(checks_to_keep)} old checks')
 
             # Clean up incidents
-            cutoff_date_incidents = datetime.utcnow() - timedelta(days=90)
+            cutoff_date_incidents = datetime.now(pytz.utc) - timedelta(days=90)
             all_incidents = db.get_all('incident')
             incidents_to_keep = [
                 i for i in all_incidents 
-                if not i.get('is_resolved') or not i.get('ended_at') or datetime.fromisoformat(i['ended_at']) >= cutoff_date_incidents
+                if not i.get('is_resolved') or not i.get('ended_at') or parse_timestamp(i['ended_at']) >= cutoff_date_incidents
             ]
 
             if len(incidents_to_keep) < len(all_incidents):

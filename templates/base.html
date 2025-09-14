@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Python Monitor{% endblock %}</title>
+    {% if get_setting('favicon_url') %}
+        <link rel="icon" type="image/x-icon" href="{{ get_setting('favicon_url') }}">
+        <link rel="shortcut icon" href="{{ get_setting('favicon_url') }}">
+    {% else %}
+        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzM3NzNkYyI+CiAgPHBhdGggZD0iTTEyIDIxLjM1bC0xLjQ1LTEuMzJDNS40IDE1LjM2IDIgMTIuMjggMiA4LjUgMiA1LjQyIDQuNDIgMyA3LjUgM2MxLjc0IDAgMy40MS44MSA0LjUgMi4wOUMxMy4wOSAzLjgxIDE0Ljc2IDMgMTYuNSAzIDE5LjU4IDMgMjIgNS40MiAyMiA4LjVjMCAzLjc4LTMuNCA2Ljg2LTguNTUgMTEuNTRMMTIgMjEuMzV6Ii8+Cjwvc3ZnPg==">
+        <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzM3NzNkYyI+CiAgPHBhdGggZD0iTTEyIDIxLjM1bC0xLjQ1LTEuMzJDNS40IDE1LjM2IDIgMTIuMjggMiA4LjUgMiA1LjQyIDQuNDIgMyA3LjUgM2MxLjc0IDAgMy40MS44MSA0LjUgMi4wOUMxMy4wOSAzLjgxIDE0Ljc2IDMgMTYuNSAzIDE5LjU4IDMgMjIgNS40MiAyMiA4LjVjMCAzLjc4LTMuNCA2Ljg2LTguNTUgMTEuNTRMMTIgMjEuMzV6Ii8+Cjwvc3ZnPg==">
+    {% endif %}
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
     <script>
       tailwind.config = {
@@ -19,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
-    <link href="/static/css/styles.css" rel="stylesheet">
+    <link href="/static/css/custom.css" rel="stylesheet">
     <script>
         // On page load or when changing themes, best to add inline in `head` to avoid FOUC
         if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -32,44 +39,60 @@
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
     <!-- Navigation -->
     <nav class="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
+        <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Left: Logo -->
                 <div class="flex items-center">
                     <a href="{{ url_for('main.dashboard') }}" class="flex items-center space-x-2">
-                        <i class="fas fa-heartbeat text-2xl text-blue-600"></i>
-                        <span class="text-xl font-semibold text-gray-900 dark:text-gray-100">Python Monitor</span>
+                        <i class="{{ get_setting('site_icon') or 'fas fa-heartbeat' }} text-2xl text-blue-600"></i>
+                        <span class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ get_setting('site_name') or 'Python Monitor' }}</span>
                     </a>
                 </div>
-                
-                <div class="flex items-center space-x-4">
-                    <a href="{{ url_for('main.dashboard') }}" 
-                       class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-tachometer-alt mr-1"></i> Dashboard
-                    </a>
-                    <a href="{{ url_for('main.monitors') }}" 
-                       class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-list mr-1"></i> Monitors
-                    </a>
-                    <a href="{{ url_for('main.incidents') }}" 
-                       class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-exclamation-triangle mr-1"></i> Incidents
-                    </a>
-                    <a href="{{ url_for('main.status_pages') }}"
-                       class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-chart-bar mr-1"></i> Status Pages
-                    </a>
-                    <a href="{{ url_for('main.maintenance') }}"
-                       class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-wrench mr-1"></i> Maintenance
-                    </a>
-                    <a href="{{ url_for('main.settings') }}" 
-                       class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
-                        <i class="fas fa-cog mr-1"></i> Settings
-                    </a>
-                    <a href="{{ url_for('main.new_monitor') }}" 
-                       class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
-                        <i class="fas fa-plus mr-1"></i> Add Monitor
-                    </a>
+
+                <!-- Center: Navigation -->
+                <div class="hidden sm:flex sm:items-center sm:space-x-2">
+                    {% if current_user.is_authenticated or not config.LOGIN_REQUIRED %}
+                        <a href="{{ url_for('main.dashboard') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i> Dashboard</a>
+                        <a href="{{ url_for('main.monitors') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"><i class="fas fa-list mr-1"></i> Monitors</a>
+                        <a href="{{ url_for('main.incidents') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"><i class="fas fa-exclamation-triangle mr-1"></i> Incidents</a>
+                        <a href="{{ url_for('main.status_pages') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"><i class="fas fa-chart-bar mr-1"></i> Status Pages</a>
+                        <a href="{{ url_for('main.maintenance') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium"><i class="fas fa-wrench mr-1"></i> Maintenance</a>
+                    {% endif %}
+                </div>
+
+                <!-- Right: User Actions -->
+                <div class="flex items-center space-x-2">
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.role == 'edit' %}
+                        <a href="{{ url_for('main.new_monitor') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+                            <i class="fas fa-plus mr-1"></i> Add Monitor
+                        </a>
+                        {% endif %}
+                        <!-- User Dropdown -->
+                        <div class="relative" id="user-menu-button">
+                            <button type="button" class="flex items-center space-x-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                <span>{{ current_user.username }}</span>
+                                <i class="fas fa-chevron-down text-xs"></i>
+                            </button>
+                            <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 z-50">
+                                <a href="{{ url_for('main.settings') }}" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><i class="fas fa-cog mr-2"></i>Settings</a>
+                                <a href="{{ url_for('main.logout') }}" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"><i class="fas fa-sign-out-alt mr-2"></i>Logout</a>
+                            </div>
+                        </div>
+                    {% else %}
+                        {% if not config.LOGIN_REQUIRED %}
+                            <a href="{{ url_for('main.new_monitor') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+                                <i class="fas fa-plus mr-1"></i> Add Monitor
+                            </a>
+                            <a href="{{ url_for('main.settings') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                <i class="fas fa-cog mr-1"></i> Settings
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('main.login') }}" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+                                <i class="fas fa-sign-in-alt mr-1"></i> Login
+                            </a>
+                        {% endif %}
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -78,7 +101,7 @@
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+            <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
                 {% for category, message in messages %}
                     {% if category == 'success' %}
                         <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
@@ -99,15 +122,15 @@
     {% endwith %}
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
     <footer class="bg-white dark:bg-gray-800 border-t dark:border-gray-700 mt-12">
-        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-screen-2xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <p class="text-center text-sm text-gray-500 dark:text-gray-400">
-                Python Monitor - Open Source Uptime Monitoring
+                {{ get_setting('footer_text') or 'Python Monitor - Open Source Uptime Monitoring' }}
             </p>
         </div>
     </footer>
@@ -115,6 +138,23 @@
     <script src="/static/js/app.js"></script>
     {% block scripts %}
     <script>
+        // User menu dropdown
+        const userMenuButton = document.getElementById('user-menu-button');
+        const userMenu = document.getElementById('user-menu');
+
+        if (userMenuButton) {
+            userMenuButton.addEventListener('click', function(event) {
+                userMenu.classList.toggle('hidden');
+                event.stopPropagation();
+            });
+
+            document.addEventListener('click', function(event) {
+                if (!userMenuButton.contains(event.target)) {
+                    userMenu.classList.add('hidden');
+                }
+            });
+        }
+
         const themeToggleBtn = document.getElementById('dark-mode-toggle');
         
         if (themeToggleBtn) {

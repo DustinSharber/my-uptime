@@ -3,6 +3,7 @@ from app.database import db
 from app.models import Monitor, MonitorCheck, Incident
 from app.monitoring import MonitoringService
 from datetime import datetime, timedelta
+import pytz
 
 api_bp = Blueprint('api', __name__)
 
@@ -54,7 +55,8 @@ def api_monitor_detail(monitor_id):
         'uptime_percentage': monitor.uptime_percentage,
         'is_active': monitor.is_active,
         'created_at': monitor.created_at,
-        'updated_at': monitor.updated_at
+        'updated_at': monitor.updated_at,
+        'log_files': monitor.log_files
     })
 
 @api_bp.route('/monitors/<int:monitor_id>/checks')
@@ -196,15 +198,29 @@ def api_agent_data():
         return jsonify({'error': 'No data provided'}), 400
 
     # Save the metrics data
-    metric_data = {
-        'monitor_id': monitor_id,
-        'cpu_percent': data.get('cpu_percent'),
-        'ram_percent': data.get('ram_percent'),
-        'timestamp': data.get('timestamp'),
-    }
-    
-    # Add to database
-    db.add('agent_metric', metric_data)
+    # Convert timestamp to ISO format for consistent storage
+    timestamp = data.get('timestamp')
+    if isinstance(timestamp, (int, float)):
+        # Use utcfromtimestamp to ensure all timestamps are in UTC
+        timestamp = datetime.utcfromtimestamp(timestamp).isoformat()
+
+    # Process metrics
+    if 'metrics' in data:
+        metric_data = {
+            'monitor_id': monitor_id,
+            'timestamp': timestamp,
+            **data['metrics']
+        }
+        db.add('agent_metric', metric_data)
+
+    # Process logs
+    if 'logs' in data and data['logs']:
+        log_data = {
+            'monitor_id': monitor_id,
+            'timestamp': timestamp,
+            'logs': data['logs']
+        }
+        db.add('agent_log', log_data)
 
     return jsonify({'status': 'success'}), 200
 
@@ -220,15 +236,86 @@ def api_monitor_metrics(monitor_id):
         return jsonify({'error': 'This monitor is not configured as a server client'}), 400
     
     hours = request.args.get('hours', 24, type=int)
-    since = datetime.utcnow() - timedelta(hours=hours)
+    # Make 'since' timezone-aware (UTC)
+    since = datetime.utcnow().replace(tzinfo=pytz.utc) - timedelta(hours=hours)
     
     all_metrics = db.get_all('agent_metric')
     monitor_metrics = [
         m for m in all_metrics 
         if m['monitor_id'] == monitor_id and 
-           datetime.fromisoformat(m['timestamp']) >= since
+           # Make the stored timestamp timezone-aware for correct comparison
+           datetime.fromisoformat(m['timestamp']).replace(tzinfo=pytz.utc) >= since
     ]
     
-    metrics_data = sorted(monitor_metrics, key=lambda m: m['timestamp'], reverse=True)
+    # Ensure timestamps are in the correct format
+    for metric in monitor_metrics:
+        if isinstance(metric['timestamp'], str):
+            metric['timestamp'] = datetime.fromisoformat(metric['timestamp']).timestamp()
+
+    metrics_data = sorted(monitor_metrics, key=lambda m: m['timestamp'])
     
     return jsonify(metrics_data)
+
+@api_bp.route('/agent/commands', methods=['GET'])
+def agent_commands():
+    """Endpoint for agents to fetch pending commands."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Authorization header missing or invalid'}), 401
+    
+    api_key = auth_header.split(' ')[1]
+    
+    try:
+        monitor_id = int(api_key)
+        monitor = db.get_by_id('monitor', monitor_id)
+        if not monitor:
+            return jsonify({'error': 'Invalid API Key'}), 403
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid API Key format'}), 403
+
+    all_pending_commands = db.get_all('pending_command')
+    
+    commands_for_agent = [
+        cmd for cmd in all_pending_commands 
+        if cmd['monitor_id'] == monitor_id and cmd['status'] == 'pending'
+    ]
+    
+    # Mark fetched commands as 'in_progress'
+    for cmd in commands_for_agent:
+        db.update('pending_command', cmd['id'], {'status': 'in_progress'})
+        
+    return jsonify(commands_for_agent)
+
+@api_bp.route('/agent/commands/<int:command_id>/update', methods=['POST'])
+def update_command_status(command_id):
+    """Endpoint for agents to update the status of an executed command."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Authorization header missing or invalid'}), 401
+    
+    api_key = auth_header.split(' ')[1]
+    
+    try:
+        monitor_id = int(api_key)
+        monitor = db.get_by_id('monitor', monitor_id)
+        if not monitor:
+            return jsonify({'error': 'Invalid API Key'}), 403
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid API Key format'}), 403
+
+    pending_command = db.get_by_id('pending_command', command_id)
+    if not pending_command or pending_command['monitor_id'] != monitor_id:
+        return jsonify({'error': 'Command not found or access denied'}), 404
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    update_data = {
+        'status': data.get('status'),
+        'output': data.get('output'),
+        'executed_at': datetime.utcnow().isoformat()
+    }
+    db.update('pending_command', command_id, update_data)
+
+    return jsonify({'status': 'success'}), 200

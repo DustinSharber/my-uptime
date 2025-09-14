@@ -17,6 +17,7 @@ class Config:
     # Application settings
     ITEMS_PER_PAGE = int(os.environ.get('ITEMS_PER_PAGE', '20'))
     TIMEZONE = os.environ.get('TIMEZONE', 'UTC')
+    LOGIN_REQUIRED = os.environ.get('LOGIN_REQUIRED', 'False').lower() in ('true', '1', 't')
     DEBUG = False
     TESTING = False
 

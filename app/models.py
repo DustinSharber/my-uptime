@@ -1,7 +1,32 @@
 from datetime import datetime, timedelta
 import json
 import pytz
-from app.database import db
+from flask_login import UserMixin
+from .database import db
+from .utils import parse_timestamp
+
+class User(UserMixin):
+    def __init__(self, **kwargs):
+        self.id = kwargs.get('id')
+        self.username = kwargs.get('username')
+        self.password = kwargs.get('password')
+        self.role = kwargs.get('role')
+        self.password_reset_required = kwargs.get('password_reset_required', False)
+
+    @staticmethod
+    def get(db_instance, user_id):
+        user_data = db_instance.get_by_id('user', user_id)
+        if user_data:
+            return User(**user_data)
+        return None
+
+    @staticmethod
+    def find_by_username(db_instance, username):
+        users = db_instance.get_all('user')
+        for user_data in users:
+            if user_data['username'] == username:
+                return User(**user_data)
+        return None
 
 class Monitor:
     def __init__(self, **kwargs):
@@ -17,19 +42,24 @@ class Monitor:
         self.retries = kwargs.get('retries', 3)
         self.headers = kwargs.get('headers', '')
         self.body = kwargs.get('body', '')
-        is_active_val = kwargs.get('is_active', True)
-        self.is_active = str(is_active_val).lower() == 'true' if isinstance(is_active_val, str) else bool(is_active_val)
-
-        verify_ssl_val = kwargs.get('verify_ssl', True)
-        self.verify_ssl = str(verify_ssl_val).lower() == 'true' if isinstance(verify_ssl_val, str) else bool(verify_ssl_val)
-
-        check_cert_expiry_val = kwargs.get('check_cert_expiry', False)
-        self.check_cert_expiry = str(check_cert_expiry_val).lower() == 'true' if isinstance(check_cert_expiry_val, str) else bool(check_cert_expiry_val)
+        self.port = kwargs.get('port')
+        self.is_active = kwargs.get('is_active', True)
+        self.verify_ssl = kwargs.get('verify_ssl', True)
+        self.check_cert_expiry = kwargs.get('check_cert_expiry', False)
         self.admin_notes = kwargs.get('admin_notes', '')
-        server_client_val = kwargs.get('server_client', False)
-        self.server_client = str(server_client_val).lower() == 'true' if isinstance(server_client_val, str) else bool(server_client_val)
+        self.admin_notes_text = kwargs.get('admin_notes_text', '')
+        self.server_client = kwargs.get('server_client', False)
+        self.log_files = kwargs.get('log_files', '')
         self.created_at = kwargs.get('created_at')
         self.updated_at = kwargs.get('updated_at')
+
+    @property
+    def tags(self):
+        """Get all tags associated with this monitor."""
+        monitor_tags = db.get_all('monitor_tag')
+        tag_ids = [mt['tag_id'] for mt in monitor_tags if mt['monitor_id'] == self.id]
+        all_tags = db.get_all('tag')
+        return [Tag(**t) for t in all_tags if t['id'] in tag_ids]
 
     @property
     def status(self):
@@ -63,7 +93,7 @@ class Monitor:
         since = datetime.now(pytz.utc) - timedelta(days=days)
         checks = db.get_all('check')
         # Make naive datetime from DB timezone-aware for comparison
-        relevant_checks = [c for c in checks if c.get('monitor_id') == self.id and c.get('checked_at') and datetime.fromisoformat(c['checked_at']).replace(tzinfo=pytz.utc) >= since]
+        relevant_checks = [c for c in checks if c.get('monitor_id') == self.id and c.get('checked_at') and parse_timestamp(c['checked_at']) >= since]
         total_checks = len(relevant_checks)
         if total_checks == 0:
             return 100.0
@@ -91,19 +121,19 @@ class Monitor:
             c for c in checks 
             if c.get('monitor_id') == self.id and 
                c.get('checked_at') and 
-               datetime.fromisoformat(c['checked_at']).replace(tzinfo=pytz.utc) >= since
+               parse_timestamp(c['checked_at']) >= since
         ]
         
         if not relevant_checks:
             return time_slots
 
         # Sort checks to ensure the latest check in a slot is processed last
-        sorted_relevant_checks = sorted(relevant_checks, key=lambda c: datetime.fromisoformat(c['checked_at']))
+        sorted_relevant_checks = sorted(relevant_checks, key=lambda c: parse_timestamp(c['checked_at']))
 
         # Place actual checks into the correct time slot
         slot_duration_seconds = 300  # 5 minutes
         for check in sorted_relevant_checks:
-            checked_at_dt = datetime.fromisoformat(check['checked_at']).replace(tzinfo=pytz.utc)
+            checked_at_dt = parse_timestamp(check['checked_at'])
             time_diff_seconds = (checked_at_dt - since).total_seconds()
             slot_index = int(time_diff_seconds / slot_duration_seconds)
             
@@ -133,15 +163,13 @@ class Monitor:
             check['in_maintenance'] = False # Default to not in maintenance
             if check.get('checked_at'):
                 # Ensure the check's datetime is timezone-aware (UTC) for comparison
-                checked_at_dt = datetime.fromisoformat(check['checked_at'])
-                if checked_at_dt.tzinfo is None:
-                    checked_at_dt = pytz.utc.localize(checked_at_dt)
+                checked_at_dt = parse_timestamp(check['checked_at'])
                 
                 for schedule in relevant_schedules:
                     if schedule.start_time and schedule.end_time:
                         # Ensure schedule times are aware for comparison
-                        start_time = schedule.start_time if schedule.start_time.tzinfo else pytz.utc.localize(schedule.start_time)
-                        end_time = schedule.end_time if schedule.end_time.tzinfo else pytz.utc.localize(schedule.end_time)
+                        start_time = parse_timestamp(schedule.start_time.isoformat())
+                        end_time = parse_timestamp(schedule.end_time.isoformat())
                         
                         if start_time <= checked_at_dt < end_time:
                             check['in_maintenance'] = True
@@ -169,16 +197,19 @@ class MonitorCheck:
         self.response_text = kwargs.get('response_text')
         self.cert_expires_in_days = kwargs.get('cert_expires_in_days')
         checked_at_str = kwargs.get('checked_at')
-        self.checked_at = datetime.fromisoformat(checked_at_str) if checked_at_str else None
+        self.checked_at = parse_timestamp(checked_at_str) if checked_at_str else None
 
 class Incident:
     def __init__(self, **kwargs):
         self.id = kwargs.get('id')
         self.monitor_id = kwargs.get('monitor_id')
+        # Ensure started_at is timezone-aware
         started_at_str = kwargs.get('started_at')
-        self.started_at = datetime.fromisoformat(started_at_str) if started_at_str else None
+        self.started_at = parse_timestamp(started_at_str) if started_at_str else None
+        
+        # Ensure ended_at is timezone-aware
         ended_at_str = kwargs.get('ended_at')
-        self.ended_at = datetime.fromisoformat(ended_at_str) if ended_at_str else None
+        self.ended_at = parse_timestamp(ended_at_str) if ended_at_str else None
         self.duration = kwargs.get('duration')
         self.error_message = kwargs.get('error_message')
         self.is_resolved = kwargs.get('is_resolved', False)
@@ -193,10 +224,13 @@ class Incident:
     def duration_formatted(self):
         """Format duration in human-readable format."""
         if not self.duration:
-            if self.ended_at and self.started_at:
-                duration = int((self.ended_at - self.started_at).total_seconds())
+            # Ensure both datetimes are timezone-aware
+            started_at = self.started_at
+            if self.ended_at:
+                ended_at = self.ended_at
+                duration = int((ended_at - started_at).total_seconds())
             else:
-                duration = int((datetime.now(pytz.utc) - self.started_at).total_seconds())
+                duration = int((datetime.now(pytz.utc) - started_at).total_seconds())
         else:
             duration = self.duration
         
@@ -213,26 +247,30 @@ class NotificationChannel:
     def __init__(self, **kwargs):
         self.id = kwargs.get('id')
         self.name = kwargs.get('name')
-        self.type = kwargs.get('type')
-        self.config = kwargs.get('config')
+        self.channel_type = kwargs.get('channel_type') or kwargs.get('type')
+        self.config = kwargs.get('config', {})
         self.is_active = kwargs.get('is_active', True)
         self.created_at = kwargs.get('created_at')
+        self.monitors = kwargs.get('monitors', [])
 
     def get_config(self):
         """Parse configuration from JSON."""
-        try:
-            return json.loads(self.config)
-        except json.JSONDecodeError:
-            return {}
+        if isinstance(self.config, str):
+            try:
+                return json.loads(self.config)
+            except json.JSONDecodeError:
+                return {}
+        return self.config
 
 class Maintenance:
     def __init__(self, **kwargs):
         self.id = kwargs.get('id')
         self.name = kwargs.get('name')
+        # Ensure start_time and end_time are timezone-aware
         start_time_str = kwargs.get('start_time')
-        self.start_time = datetime.fromisoformat(start_time_str) if start_time_str else None
+        self.start_time = parse_timestamp(start_time_str) if start_time_str else None
         end_time_str = kwargs.get('end_time')
-        self.end_time = datetime.fromisoformat(end_time_str) if end_time_str else None
+        self.end_time = parse_timestamp(end_time_str) if end_time_str else None
         self.description = kwargs.get('description')
         self.created_at = kwargs.get('created_at')
         self.monitors = kwargs.get('monitors', [])
@@ -275,11 +313,70 @@ class StatusPage:
         # Create Monitor objects
         return [Monitor(**data) for data in status_page_monitors_data]
 
+class Tag:
+    def __init__(self, **kwargs):
+        self.id = kwargs.get('id')
+        self.name = kwargs.get('name')
+        self.color = kwargs.get('color', '#6B7280')  # Default to gray
+        self.created_at = kwargs.get('created_at')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'color': self.color,
+            'created_at': self.created_at
+        }
+
 class AgentMetric:
     def __init__(self, **kwargs):
         self.id = kwargs.get('id')
         self.monitor_id = kwargs.get('monitor_id')
         self.cpu_percent = kwargs.get('cpu_percent')
         self.ram_percent = kwargs.get('ram_percent')
+        self.disks = kwargs.get('disks', {})
+        self.network = kwargs.get('network', {})
         self.timestamp = kwargs.get('timestamp')
         self.created_at = kwargs.get('created_at', datetime.utcnow().isoformat())
+
+class Command:
+    def __init__(self, **kwargs):
+        self.id = kwargs.get('id')
+        self.monitor_id = kwargs.get('monitor_id')
+        self.name = kwargs.get('name')
+        self.script = kwargs.get('script')
+        self.shell_type = kwargs.get('shell_type', 'powershell') # powershell or bash
+        self.trigger = kwargs.get('trigger') # manual, schedule, on_down
+        self.schedule = kwargs.get('schedule') # cron-like string for 'schedule' trigger
+        self.created_at = kwargs.get('created_at')
+
+class BackupConfig:
+    def __init__(self, **kwargs):
+        self.id = kwargs.get('id')
+        self.name = kwargs.get('name', 'Auto Backup')
+        self.backup_path = kwargs.get('backup_path')
+        self.frequency = kwargs.get('frequency', 'weekly') # daily, weekly, monthly
+        self.time = kwargs.get('time', '02:00') # HH:MM format
+        self.day_of_week = kwargs.get('day_of_week', '0') # 0-6, Sunday=0
+        self.day_of_month = kwargs.get('day_of_month', 1) # 1-28
+        self.retention_days = kwargs.get('retention_days', 30)
+        self.is_active = kwargs.get('is_active', True)
+        self.include_logs = kwargs.get('include_logs', False)
+        self.created_at = kwargs.get('created_at')
+        self.updated_at = kwargs.get('updated_at')
+        self.last_backup_at = kwargs.get('last_backup_at')
+        self.last_backup_status = kwargs.get('last_backup_status') # success, failed
+        self.last_backup_error = kwargs.get('last_backup_error')
+
+    def get_cron_expression(self):
+        """Generate cron expression based on frequency settings."""
+        hour, minute = self.time.split(':')
+        
+        if self.frequency == 'daily':
+            return f"{minute} {hour} * * *"
+        elif self.frequency == 'weekly':
+            return f"{minute} {hour} * * {self.day_of_week}"
+        elif self.frequency == 'monthly':
+            return f"{minute} {hour} {self.day_of_month} * *"
+        
+        return None

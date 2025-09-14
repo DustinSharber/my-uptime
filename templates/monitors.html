@@ -6,7 +6,7 @@
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
-        <h1 class="text-3xl font-bold text-gray-900">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
             <i class="fas fa-list mr-2"></i>All Monitors
         </h1>
         <a href="{{ url_for('main.new_monitor') }}" 
@@ -16,35 +16,59 @@
     </div>
 
     <!-- Monitors List -->
-    <div class="bg-white shadow rounded-lg">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="p-4">
+            <form method="GET" action="{{ url_for('main.monitors') }}">
+                <div class="flex items-center space-x-4">
+                    <div>
+                        <label for="sort_by" class="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</label>
+                        <select name="sort_by" id="sort_by" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" onchange="this.form.submit()">
+                            <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name</option>
+                            <option value="created_at" {% if sort_by == 'created_at' %}selected{% endif %}>Date Created</option>
+                            <option value="tags" {% if sort_by == 'tags' %}selected{% endif %}>Tags</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="sort_order" class="text-sm font-medium text-gray-700 dark:text-gray-300">Order:</label>
+                        <select name="sort_order" id="sort_order" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" onchange="this.form.submit()">
+                            <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Ascending</option>
+                            <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Descending</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
         {% if monitors.items %}
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Status
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Monitor
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Tags
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Type
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Response Time
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Uptime
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                 Actions
                             </th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {% for monitor in monitors.items %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 {% if monitor.status == 'up' %}
                                     <div class="flex items-center">
@@ -65,21 +89,30 @@
                             </td>
                             <td class="px-6 py-4">
                                 <div>
-                                    <div class="text-sm font-medium text-gray-900">
+                                    <div class="text-sm font-medium text-gray-900 dark:text-white">
                                         <a href="{{ url_for('main.monitor_detail', monitor_id=monitor.id) }}" 
-                                           class="hover:text-blue-600">
+                                           class="hover:text-blue-600 dark:hover:text-blue-400">
                                             {{ monitor.name }}
                                         </a>
                                     </div>
-                                    <div class="text-sm text-gray-500 truncate max-w-xs">{{ monitor.url }}</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">{{ monitor.url }}</div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                <div class="flex flex-wrap gap-1">
+                                    {% for tag in monitor.tags %}
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background-color: {{ tag.color }}; color: {{ get_text_color(tag.color) }};">
+                                            {{ tag.name|upper }}
+                                        </span>
+                                    {% endfor %}
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-200">
                                     {{ monitor.monitor_type.upper() }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
                                 {% if monitor.response_time %}
                                     {{ "%.0f"|format(monitor.response_time) }}ms
                                 {% else %}
@@ -92,7 +125,7 @@
                                         <div class="bg-green-600 h-2 rounded-full" 
                                              style="width: {{ monitor.uptime_percentage }}%"></div>
                                     </div>
-                                    <span class="text-sm text-gray-900">{{ "%.1f"|format(monitor.uptime_percentage) }}%</span>
+                                    <span class="text-sm text-gray-900 dark:text-gray-300">{{ "%.1f"|format(monitor.uptime_percentage) }}%</span>
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
@@ -101,7 +134,7 @@
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <a href="{{ url_for('main.edit_monitor', monitor_id=monitor.id) }}" 
-                                   class="text-gray-600 hover:text-gray-900" title="Edit">
+                                   class="text-green-600 hover:text-green-900" title="Edit">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <form method="POST" action="{{ url_for('main.toggle_monitor', monitor_id=monitor.id) }}" 
@@ -133,11 +166,11 @@
 
             <!-- Pagination -->
             {% if monitors.pages > 1 %}
-            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div class="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
                 <div class="flex-1 flex justify-between sm:hidden">
                     {% if monitors.has_prev %}
                         <a href="{{ url_for('main.monitors', page=monitors.prev_num) }}" 
-                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                             Previous
                         </a>
                     {% endif %}
@@ -150,7 +183,7 @@
                 </div>
                 <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm text-gray-700">
+                        <p class="text-sm text-gray-700 dark:text-gray-300">
                             Showing {{ monitors.per_page * (monitors.page - 1) + 1 }} to 
                             {{ monitors.per_page * (monitors.page - 1) + monitors.items|length }} of 
                             {{ monitors.total }} results
@@ -169,11 +202,11 @@
                                 {% if page_num %}
                                     {% if page_num != monitors.page %}
                                         <a href="{{ url_for('main.monitors', page=page_num) }}" 
-                                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                           class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
                                             {{ page_num }}
                                         </a>
                                     {% else %}
-                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-blue-50 text-sm font-medium text-blue-600">
+                                        <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-blue-50 dark:bg-blue-900 text-sm font-medium text-blue-600 dark:text-blue-300">
                                             {{ page_num }}
                                         </span>
                                     {% endif %}
@@ -186,7 +219,7 @@
                             
                             {% if monitors.has_next %}
                                 <a href="{{ url_for('main.monitors', page=monitors.next_num) }}" 
-                                   class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                   class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600">
                                     <i class="fas fa-chevron-right"></i>
                                 </a>
                             {% endif %}
@@ -198,9 +231,9 @@
 
         {% else %}
             <div class="px-6 py-12 text-center">
-                <i class="fas fa-plus-circle text-4xl text-gray-300 mb-4"></i>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">No monitors configured</h3>
-                <p class="text-gray-500 mb-4">Get started by adding your first monitor to track uptime and performance.</p>
+                <i class="fas fa-plus-circle text-4xl text-gray-300 dark:text-gray-600 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No monitors configured</h3>
+                <p class="text-gray-500 dark:text-gray-400 mb-4">Get started by adding your first monitor to track uptime and performance.</p>
                 <a href="{{ url_for('main.new_monitor') }}" 
                    class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
                     <i class="fas fa-plus mr-2"></i>Add Your First Monitor
