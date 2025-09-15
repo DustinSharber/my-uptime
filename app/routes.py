@@ -1642,15 +1642,29 @@ def download_agent(monitor_id):
     dist_dir = agent_dir / 'dist'
     dist_dir.mkdir(exist_ok=True)
 
-    # Define executable names based on platform
+    # Check if we're running in a Docker container
+    is_docker = os.path.exists('/.dockerenv')
+    
+    # Define executable names and build approach based on platform and environment
     if platform == 'linux':
         agent_name = f'uptime_agent_linux_{monitor_id}'
-        build_script = 'build.sh'
         mimetype = 'application/octet-stream'
-    else: # windows
-        agent_name = f'uptime_agent_{monitor_id}.exe'
-        build_script = 'build.bat'
-        mimetype = 'application/x-msdownloader'
+        build_script = 'build_cross_platform.sh'
+        build_platform = 'linux'
+    else:  # windows
+        if is_docker:
+            # In Docker containers, we'll build a Linux executable but name it for Windows download
+            # This is a compromise since true cross-compilation requires Wine
+            agent_name = f'uptime_agent_{monitor_id}'  # No .exe extension for Linux binary
+            mimetype = 'application/octet-stream'
+            build_script = 'build_cross_platform.sh'
+            build_platform = 'windows'
+        else:
+            # Native Windows environment
+            agent_name = f'uptime_agent_{monitor_id}.exe'
+            mimetype = 'application/x-msdownload'
+            build_script = 'build.bat'
+            build_platform = 'windows'
 
     agent_path = dist_dir / agent_name
 
@@ -1672,46 +1686,43 @@ def download_agent(monitor_id):
         os.remove(agent_path)
     
     try:
-        # Determine the correct name for pyinstaller
+        # Use build script approach with cross-platform script
         pyinstaller_name = f'uptime_agent_linux_{monitor_id}' if platform == 'linux' else f'uptime_agent_{monitor_id}'
-
-        # The build script (build.bat/build.sh) is now the source of truth for building.
-        # We pass arguments to it for customization.
+        
         build_script_path = agent_dir / build_script
         
         # Ensure the build script is executable
         build_script_path.chmod(0o755)
 
         # Construct the command to run the build script
-        # Pass the temporary script path and the desired output name as arguments
+        # Pass the platform as third argument to cross-platform script
         build_command = [
             str(build_script_path),
             str(temp_agent_script_path),
-            pyinstaller_name
+            pyinstaller_name,
+            build_platform
         ]
 
         # Run the build process
-        # Using shell=False and passing a list of args is safer
         result = subprocess.run(
             build_command,
             capture_output=True,
             text=True,
             cwd=str(agent_dir),
-            check=False  # We check the return code manually
+            check=False
         )
 
         if result.returncode != 0:
-            # Combine stdout and stderr for a complete error message
             error_output = result.stdout + "\n" + result.stderr
             raise subprocess.CalledProcessError(result.returncode, build_command, output=error_output)
 
-        # The final executable path is now determined by the build script,
-        # which places it in the 'dist' directory.
+        # Verify the executable was created
         if not agent_path.exists():
             raise Exception(f"Build process completed, but the executable was not found at {agent_path}")
 
     except subprocess.CalledProcessError as e:
-        flash(f'Error building agent: {e.stderr.decode() if e.stderr else str(e)}', 'error')
+        error_msg = e.output if hasattr(e, 'output') and e.output else str(e)
+        flash(f'Error building agent: {error_msg}', 'error')
         return redirect(url_for('main.edit_monitor', monitor_id=monitor_id))
     except Exception as e:
         flash(f'An unexpected error occurred during build: {str(e)}', 'error')
