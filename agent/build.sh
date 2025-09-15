@@ -7,7 +7,7 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
-pip install pyinstaller
+pip install pyinstaller==5.7.0
 
 # Check if arguments are provided
 if [ -z "$1" ]; then

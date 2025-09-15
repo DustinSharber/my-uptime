@@ -347,6 +347,22 @@
     </div>
     {% endif %}
 
+    <!-- Download Agent -->
+    <div class="mt-4">
+        <h3 class="text-lg font-semibold">Download Agent</h3>
+        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='windows') }}" class="text-blue-500 hover:underline">Download Agent (Windows)</a>
+        <br>
+        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='linux') }}" class="text-blue-500 hover:underline">Download Agent (Linux)</a>
+        <p class="text-sm text-gray-500 mt-2">
+            For Linux: After downloading, you may need to make the file executable.
+            <br>
+            Open a terminal and run:
+            <code>chmod +x &lt;downloaded_file_name&gt;</code>
+            <br>
+            Then run it with:
+            <code>./&lt;downloaded_file_name&gt;</code>
+        </p>
+    </div>
 </div>
 
 {% endblock %}

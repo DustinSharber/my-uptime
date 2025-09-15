@@ -1679,9 +1679,8 @@ def download_agent(monitor_id):
         # We pass arguments to it for customization.
         build_script_path = agent_dir / build_script
         
-        # Ensure the build script is executable (especially for Linux)
-        if platform == 'linux':
-            build_script_path.chmod(0o755)
+        # Ensure the build script is executable
+        build_script_path.chmod(0o755)
 
         # Construct the command to run the build script
         # Pass the temporary script path and the desired output name as arguments

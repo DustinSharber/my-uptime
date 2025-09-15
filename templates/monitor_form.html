@@ -208,26 +208,42 @@
                                  class="rounded border-gray-300 dark:border-gray-600 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
                         <span class="ml-2 text-sm text-gray-600 dark:text-gray-300">Server Client</span>
                     </label>
-                    {% if monitor %}
-                    <div id="agent-download" class="mt-2 pl-6" style="display: none;">
-                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='windows') }}" class="text-blue-600 hover:text-blue-800">
-                            <i class="fa-brands fa-windows mr-1"></i>Download Agent (Windows)
-                        </a>
-                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='linux') }}" class="text-blue-600 hover:text-blue-800 ml-4">
-                            <i class="fa-brands fa-linux mr-1"></i>Download Agent (Linux)
-                        </a>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Download this monitor's system metrics agent</p>
-                        <div class="mt-4">
-                            <label for="log_files" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Log Files to Monitor</label>
-                            <textarea id="log_files" name="log_files" rows="3"
-                                      placeholder="/var/log/app.log,/var/log/syslog"
-                                      class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.log_files or '' }}</textarea>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Comma-separated list of log file paths to monitor.</p>
-                        </div>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
+
+            <!-- Agent Settings -->
+            <div id="agent-settings" class="pt-6">
+                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Agent Settings</h3>
+                <div class="flex items-center">
+                    <input type="checkbox" id="is_agent" name="is_agent"
+                           class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                           {% if monitor and monitor.is_agent %}checked{% endif %}>
+                    <label for="is_agent" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                        Server Client
+                    </label>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Enable this to allow agent downloads for this monitor.</p>
+            </div>
+
+            {% if monitor %}
+            <div id="download-agent-section" class="pt-6" style="display: {% if monitor and monitor.is_agent %}block{% else %}none{% endif %};">
+                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Download Agent</h3>
+                <div class="px-6 py-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='windows') }}" class="text-blue-500 hover:underline">Download Agent (Windows)</a>
+                    <br>
+                    <div class="tooltip inline-block">
+                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='linux') }}" class="text-blue-500 hover:underline">Download Agent (Linux)</a>
+                        <span class="tooltiptext">
+                            Run in terminal:
+                            <br>
+                            <code>chmod +x &lt;file&gt;</code>
+                            <br>
+                            <code>./&lt;file&gt;</code>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Actions -->
             <div class="pt-6 border-t border-gray-200 dark:border-gray-700 space-y-4">
@@ -254,6 +270,24 @@
                 </div>
             </div>
         </form>
+
+        {% if monitor %}
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-semibold">Download Agent</h3>
+                <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='windows') }}" class="text-blue-500 hover:underline">Download Agent (Windows)</a>
+                <br>
+                <div class="tooltip">
+                    <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='linux') }}" class="text-blue-500 hover:underline">Download Agent (Linux)</a>
+                    <span class="tooltiptext">
+                        Run the following commands in your terminal:
+                        <br>
+                        <code>chmod +x &lt;downloaded_file_name&gt;</code>
+                        <br>
+                        <code>./&lt;downloaded_file_name&gt;</code>
+                    </span>
+                </div>
+            </div>
+        {% endif %}
     </div>
 </div>
 
@@ -377,7 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const certExpirySettings = document.getElementById('cert-expiry-settings');
         const portSettings = document.getElementById('port-settings');
         
-        if (this.value === 'http' || this.value === 'https') {
+        if (this.value === 'http' or this.value === 'https') {
             httpSettings.style.display = 'block';
             portSettings.style.display = 'none';
             // Show SSL settings only for HTTPS
@@ -432,6 +466,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         serverClientCheckbox.addEventListener('change', toggleAgentDownload);
         toggleAgentDownload(); // Initial state
+    }
+
+    const isAgentCheckbox = document.getElementById('is_agent');
+    const downloadAgentSection = document.getElementById('download-agent-section');
+
+    if (isAgentCheckbox && downloadAgentSection) {
+        isAgentCheckbox.addEventListener('change', function() {
+            downloadAgentSection.style.display = this.checked ? 'block' : 'none';
+        });
     }
 });
 
@@ -494,5 +537,71 @@ function testMonitor() {
         testButton.innerHTML = '<i class="fas fa-vial mr-2"></i>Test Now';
     });
 }
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const monitorTypeSelect = document.getElementById('monitor_type');
+    const httpSettings = document.getElementById('http-settings');
+    const sslSettings = document.getElementById('ssl-settings');
+    const certExpirySettings = document.getElementById('cert-expiry-settings');
+    const portSettings = document.getElementById('port-settings');
+    const requestBody = document.getElementById('request-body');
+    const isAgentCheckbox = document.getElementById('is_agent');
+    const downloadAgentSection = document.getElementById('download-agent-section');
+
+    // Initialize visibility based on current monitor type
+    function initializeSettings() {
+        const monitorType = monitorTypeSelect.value;
+        
+        // Show/Hide HTTP, SSL, Cert Expiry, and Port settings
+        if (monitorType === 'http' || monitorType === 'https') {
+            httpSettings.style.display = 'block';
+            if (monitorType === 'https') {
+                sslSettings.style.display = 'block';
+                certExpirySettings.style.display = 'block';
+            } else {
+                sslSettings.style.display = 'none';
+                certExpirySettings.style.display = 'none';
+            }
+            portSettings.style.display = 'none';
+        } else if (monitorType === 'port') {
+            httpSettings.style.display = 'none';
+            portSettings.style.display = 'block';
+        } else {
+            httpSettings.style.display = 'none';
+            portSettings.style.display = 'none';
+        }
+    }
+
+    // Initialize request body visibility based on HTTP method
+    function initializeRequestBody() {
+        const httpMethod = document.getElementById('method').value;
+        requestBody.style.display = (httpMethod === 'POST' || httpMethod === 'PUT') ? 'block' : 'none';
+    }
+
+    // Initialize agent download section visibility
+    function initializeAgentDownload() {
+        const isAgentChecked = isAgentCheckbox.checked;
+        downloadAgentSection.style.display = isAgentChecked ? 'block' : 'none';
+    }
+
+    // Event listeners
+    monitorTypeSelect.addEventListener('change', function() {
+        initializeSettings();
+        // Trigger change event for URL field to update monitor type based on URL
+        document.getElementById('url').dispatchEvent(new Event('input'));
+    });
+
+    document.getElementById('method').addEventListener('change', initializeRequestBody);
+    isAgentCheckbox.addEventListener('change', initializeAgentDownload);
+
+    // Initial setup
+    initializeSettings();
+    initializeRequestBody();
+    initializeAgentDownload();
+});
 </script>
 {% endblock %}
