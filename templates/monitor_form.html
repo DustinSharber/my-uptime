@@ -202,13 +202,6 @@
                               class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.admin_notes_text if monitor else '' }}</textarea>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Free-form text notes that will be saved with this monitor.</p>
                 </div>
-                <div class="mt-4">
-                    <label class="flex items-center">
-                        <input type="checkbox" id="server_client" name="server_client" {% if monitor and monitor.server_client %}checked{% endif %}
-                                 class="rounded border-gray-300 dark:border-gray-600 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
-                        <span class="ml-2 text-sm text-gray-600 dark:text-gray-300">Server Client</span>
-                    </label>
-                </div>
             </div>
 
             <!-- Agent Settings -->
@@ -271,23 +264,6 @@
             </div>
         </form>
 
-        {% if monitor %}
-            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-                <h3 class="text-lg font-semibold">Download Agent</h3>
-                <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='windows') }}" class="text-blue-500 hover:underline">Download Agent (Windows)</a>
-                <br>
-                <div class="tooltip">
-                    <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='linux') }}" class="text-blue-500 hover:underline">Download Agent (Linux)</a>
-                    <span class="tooltiptext">
-                        Run the following commands in your terminal:
-                        <br>
-                        <code>chmod +x &lt;downloaded_file_name&gt;</code>
-                        <br>
-                        <code>./&lt;downloaded_file_name&gt;</code>
-                    </span>
-                </div>
-            </div>
-        {% endif %}
     </div>
 </div>
 
@@ -411,7 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const certExpirySettings = document.getElementById('cert-expiry-settings');
         const portSettings = document.getElementById('port-settings');
         
-        if (this.value === 'http' or this.value === 'https') {
+        if (this.value === 'http' || this.value === 'https') {
             httpSettings.style.display = 'block';
             portSettings.style.display = 'none';
             // Show SSL settings only for HTTPS
@@ -432,20 +408,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Add URL validation and auto monitor type detection
+    // Enhanced URL validation and auto monitor type detection
     document.getElementById('url').addEventListener('input', function() {
         const url = this.value.trim();
         const monitorTypeSelect = document.getElementById('monitor_type');
         
         if (url) {
+            // Check for protocol in URL and auto-select monitor type
             if (url.toLowerCase().startsWith('https://')) {
-                monitorTypeSelect.value = 'https';
-                monitorTypeSelect.dispatchEvent(new Event('change'));
+                if (monitorTypeSelect.value !== 'https') {
+                    monitorTypeSelect.value = 'https';
+                    // Trigger change event to update form sections
+                    monitorTypeSelect.dispatchEvent(new Event('change'));
+                }
             } else if (url.toLowerCase().startsWith('http://')) {
-                monitorTypeSelect.value = 'http';
-                monitorTypeSelect.dispatchEvent(new Event('change'));
+                if (monitorTypeSelect.value !== 'http') {
+                    monitorTypeSelect.value = 'http';
+                    // Trigger change event to update form sections
+                    monitorTypeSelect.dispatchEvent(new Event('change'));
+                }
             }
         }
+    });
+
+    // Also trigger URL detection on paste events
+    document.getElementById('url').addEventListener('paste', function() {
+        // Use setTimeout to allow paste to complete before checking value
+        setTimeout(() => {
+            this.dispatchEvent(new Event('input'));
+        }, 10);
     });
 
     // Trigger change events to set initial state
@@ -457,17 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
         testButton.addEventListener('click', testMonitor);
     }
 
-    // Show/hide agent download link based on server client checkbox
-    const serverClientCheckbox = document.getElementById('server_client');
-    const agentDownload = document.getElementById('agent-download');
-    if (serverClientCheckbox && agentDownload) {
-        function toggleAgentDownload() {
-            agentDownload.style.display = serverClientCheckbox.checked ? 'block' : 'none';
-        }
-        serverClientCheckbox.addEventListener('change', toggleAgentDownload);
-        toggleAgentDownload(); // Initial state
-    }
-
+    // Show/hide agent download section based on is_agent checkbox
     const isAgentCheckbox = document.getElementById('is_agent');
     const downloadAgentSection = document.getElementById('download-agent-section');
 
@@ -537,71 +518,5 @@ function testMonitor() {
         testButton.innerHTML = '<i class="fas fa-vial mr-2"></i>Test Now';
     });
 }
-</script>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const monitorTypeSelect = document.getElementById('monitor_type');
-    const httpSettings = document.getElementById('http-settings');
-    const sslSettings = document.getElementById('ssl-settings');
-    const certExpirySettings = document.getElementById('cert-expiry-settings');
-    const portSettings = document.getElementById('port-settings');
-    const requestBody = document.getElementById('request-body');
-    const isAgentCheckbox = document.getElementById('is_agent');
-    const downloadAgentSection = document.getElementById('download-agent-section');
-
-    // Initialize visibility based on current monitor type
-    function initializeSettings() {
-        const monitorType = monitorTypeSelect.value;
-        
-        // Show/Hide HTTP, SSL, Cert Expiry, and Port settings
-        if (monitorType === 'http' || monitorType === 'https') {
-            httpSettings.style.display = 'block';
-            if (monitorType === 'https') {
-                sslSettings.style.display = 'block';
-                certExpirySettings.style.display = 'block';
-            } else {
-                sslSettings.style.display = 'none';
-                certExpirySettings.style.display = 'none';
-            }
-            portSettings.style.display = 'none';
-        } else if (monitorType === 'port') {
-            httpSettings.style.display = 'none';
-            portSettings.style.display = 'block';
-        } else {
-            httpSettings.style.display = 'none';
-            portSettings.style.display = 'none';
-        }
-    }
-
-    // Initialize request body visibility based on HTTP method
-    function initializeRequestBody() {
-        const httpMethod = document.getElementById('method').value;
-        requestBody.style.display = (httpMethod === 'POST' || httpMethod === 'PUT') ? 'block' : 'none';
-    }
-
-    // Initialize agent download section visibility
-    function initializeAgentDownload() {
-        const isAgentChecked = isAgentCheckbox.checked;
-        downloadAgentSection.style.display = isAgentChecked ? 'block' : 'none';
-    }
-
-    // Event listeners
-    monitorTypeSelect.addEventListener('change', function() {
-        initializeSettings();
-        // Trigger change event for URL field to update monitor type based on URL
-        document.getElementById('url').dispatchEvent(new Event('input'));
-    });
-
-    document.getElementById('method').addEventListener('change', initializeRequestBody);
-    isAgentCheckbox.addEventListener('change', initializeAgentDownload);
-
-    // Initial setup
-    initializeSettings();
-    initializeRequestBody();
-    initializeAgentDownload();
-});
 </script>
 {% endblock %}
