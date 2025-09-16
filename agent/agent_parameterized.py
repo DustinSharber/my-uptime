@@ -5,17 +5,38 @@ import json
 import os
 import subprocess
 import glob
+import argparse
+import sys
 from datetime import datetime
 
 # --- Configuration ---
-# This will be replaced by a unique ID from the main application
-API_KEY = '2' 
-# The URL of the main monitoring application's API endpoint
-API_ENDPOINT = os.environ.get('UPTIME_API_ENDPOINT', 'http://localhost:5000/api')
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Uptime Monitoring Agent')
+parser.add_argument('--monitor-id', type=int, help='Monitor ID for this agent')
+parser.add_argument('--api-endpoint', help='API endpoint URL')
+parser.add_argument('--log-lines', type=int, default=100, help='Number of log lines to read')
+
+args = parser.parse_args()
+
+# Configuration with command line override
+API_KEY = str(args.monitor_id) if args.monitor_id else os.environ.get('UPTIME_API_KEY', 'YOUR_DEFAULT_API_KEY')
+API_ENDPOINT = args.api_endpoint or os.environ.get('UPTIME_API_ENDPOINT', 'http://localhost:5000/api')
+LOG_LINES = args.log_lines
+
+# Validate required parameters
+if not args.monitor_id and not os.environ.get('UPTIME_API_KEY'):
+    print("Error: Monitor ID is required. Use --monitor-id parameter or set UPTIME_API_KEY environment variable.")
+    print("Example: ./uptime_agent --monitor-id 3")
+    sys.exit(1)
+
+# Show the actual monitor ID in logs, not the API key
+monitor_id_display = args.monitor_id if args.monitor_id else os.environ.get('UPTIME_API_KEY', 'Unknown')
+print(f"Starting agent for Monitor ID: {monitor_id_display}")
+print(f"API Endpoint: {API_ENDPOINT}")
+print(f"Data will be sent to: {API_ENDPOINT}/agent/data")
+
 # Interval in seconds to send data
-SEND_INTERVAL = 60 
-# Number of lines to read from the end of each log file
-LOG_LINES = int(os.environ.get('UPTIME_LOG_LINES', 100))
+SEND_INTERVAL = 60
 
 def get_monitor_config():
     """Fetches the monitor's configuration from the main application."""
@@ -125,18 +146,29 @@ def fetch_commands():
         return []
 
 def execute_command(command):
-    """Executes a PowerShell script."""
+    """Executes a script using the specified shell."""
     script = command.get('script')
+    shell_type = command.get('shell_type', 'powershell') # Default to powershell for backward compatibility
+
     if not script:
         return {"status": "error", "output": "Empty script."}
 
     try:
-        # Using powershell.exe for Windows
+        if shell_type == 'bash':
+            # For Linux/macOS
+            executable = "bash"
+            args = ["-c", script]
+        else:
+            # For Windows PowerShell
+            executable = "powershell.exe"
+            args = ["-Command", script]
+
         result = subprocess.run(
-            ["powershell.exe", "-Command", script],
+            [executable] + args,
             capture_output=True,
             text=True,
-            timeout=300 # 5-minute timeout
+            timeout=300, # 5-minute timeout
+            shell=False # It's safer to not use shell=True
         )
         
         output = result.stdout + result.stderr
@@ -144,6 +176,8 @@ def execute_command(command):
         
         return {"status": status, "output": output}
 
+    except FileNotFoundError:
+        return {"status": "failed", "output": f"The executable '{executable}' was not found. Ensure it is in the system's PATH."}
     except subprocess.TimeoutExpired:
         return {"status": "failed", "output": "Command timed out after 5 minutes."}
     except Exception as e:
@@ -178,8 +212,8 @@ def handle_commands():
 
 def main():
     """Main loop to collect and send metrics."""
-    print(f"Starting agent with API Key: ...{API_KEY[-4:]}")
-    print(f"Sending data to: {API_ENDPOINT}")
+    print(f"Agent initialized. Starting monitoring loop...")
+    print(f"Check interval: {SEND_INTERVAL} seconds")
     
     while True:
         try:

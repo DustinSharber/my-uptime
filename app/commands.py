@@ -32,7 +32,7 @@ def create_sample_data_command():
             },
             {
                 'name': 'Local API',
-                'url': 'http://localhost:5001/api/status',
+                'url': 'http://localhost:5000/api/status',
                 'monitor_type': 'http',
                 'method': 'GET',
                 'expected_status': 200,

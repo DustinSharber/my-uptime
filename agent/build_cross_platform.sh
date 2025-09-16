@@ -35,14 +35,40 @@ if [ -f /.dockerenv ]; then
     
     # Build the executable with appropriate naming
     if [ "$PLATFORM" = "windows" ]; then
-        # For Windows builds in Docker, we build a Linux executable 
-        # but name it appropriately for download
-        echo "Building Windows-targeted executable in Linux container..."
-        pyinstaller --onefile --name "${OUTPUT_NAME}" "$INPUT_SCRIPT" --distpath dist
+        echo "Building Windows executable in Linux container using Wine..."
         
-        # The output will be a Linux binary, but we'll serve it as if it were Windows
-        # This is a limitation of cross-compilation in basic Docker containers
-        echo "Note: Built Linux executable for Windows download (cross-compilation limitation)"
+        # Initialize Wine if not already done
+        if [ ! -d "$HOME/.wine" ]; then
+            echo "Initializing Wine..."
+            wineboot --init
+            sleep 5
+        fi
+        
+        # Install Python for Windows via Wine
+        if [ ! -f "$HOME/.wine/drive_c/Python311/python.exe" ]; then
+            echo "Installing Python for Windows via Wine..."
+            wget -q https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe -O /tmp/python-installer.exe
+            wine /tmp/python-installer.exe /quiet InstallAllUsers=1 PrependPath=1
+            sleep 10
+        fi
+        
+        # Install PyInstaller in Wine Python
+        wine /root/.wine/drive_c/Python311/python.exe -m pip install pyinstaller
+        
+        # Copy the script to Wine's drive
+        cp "$INPUT_SCRIPT" "$HOME/.wine/drive_c/temp_script.py"
+        
+        # Build Windows executable using Wine
+        wine /root/.wine/drive_c/Python311/python.exe -m PyInstaller --onefile --name "${OUTPUT_NAME}" "c:/temp_script.py" --distpath "c:/dist"
+        
+        # Copy the built executable back to the host filesystem
+        cp "$HOME/.wine/drive_c/dist/${OUTPUT_NAME}.exe" "dist/${OUTPUT_NAME}.exe"
+        
+        # Clean up
+        rm -f "$HOME/.wine/drive_c/temp_script.py"
+        rm -rf "$HOME/.wine/drive_c/build"
+        
+        echo "Windows executable built successfully!"
     else
         # Linux build
         echo "Building Linux executable..."

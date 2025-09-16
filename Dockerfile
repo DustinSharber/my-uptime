@@ -1,9 +1,36 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# Use Ubuntu 20.04 for better compatibility with older GLIBC systems
+FROM ubuntu:20.04
 
-# Install system dependencies needed for building agents
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python 3.11 and system dependencies
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
+    python3.11-distutils \
+    python3-pip \
     build-essential \
+    wget \
+    gnupg2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symlinks for python3.11
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Install pip for Python 3.11
+RUN wget https://bootstrap.pypa.io/get-pip.py && \
+    python3.11 get-pip.py && \
+    rm get-pip.py
+
+# Install Wine for Windows cross-compilation (using Ubuntu's Wine)
+RUN apt-get update && apt-get install -y \
+    wine \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user

@@ -130,7 +130,7 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                 <a href="{{ url_for('main.monitor_detail', monitor_id=monitor.id) }}" 
-                                   class="text-blue-600 hover:text-blue-900" title="View Details">
+                                   class="text-yellow-600 hover:text-yellow-900" title="View Details">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <a href="{{ url_for('main.edit_monitor', monitor_id=monitor.id) }}" 
@@ -140,7 +140,7 @@
                                 <form method="POST" action="{{ url_for('main.toggle_monitor', monitor_id=monitor.id) }}" 
                                       class="inline">
                                     <button type="submit" 
-                                            class="text-yellow-600 hover:text-yellow-900" 
+                                            class="text-orange-600 hover:text-orange-900" 
                                             title="{% if monitor.is_active %}Pause{% else %}Resume{% endif %}">
                                         {% if monitor.is_active %}
                                             <i class="fas fa-pause"></i>

@@ -208,31 +208,102 @@
             <div id="agent-settings" class="pt-6">
                 <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Agent Settings</h3>
                 <div class="flex items-center">
-                    <input type="checkbox" id="is_agent" name="is_agent"
+                    <input type="checkbox" id="server_client" name="server_client"
                            class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                           {% if monitor and monitor.is_agent %}checked{% endif %}>
-                    <label for="is_agent" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                           {% if monitor and monitor.server_client %}checked{% endif %}>
+                    <label for="server_client" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
                         Server Client
                     </label>
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Enable this to allow agent downloads for this monitor.</p>
+                
+                {% if monitor %}
+                <div id="monitor-id-display" class="mt-3" style="display: {% if monitor and monitor.server_client %}block{% else %}none{% endif %};">
+                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                        <p class="text-sm font-medium text-blue-800 dark:text-blue-200">Monitor ID: <span class="font-mono">{{ monitor.id }}</span></p>
+                        <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">Use this ID when configuring the agent</p>
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             {% if monitor %}
-            <div id="download-agent-section" class="pt-6" style="display: {% if monitor and monitor.is_agent %}block{% else %}none{% endif %};">
-                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Download Agent</h3>
-                <div class="px-6 py-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                    <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='windows') }}" class="text-blue-500 hover:underline">Download Agent (Windows)</a>
-                    <br>
-                    <div class="tooltip inline-block">
-                        <a href="{{ url_for('main.download_agent', monitor_id=monitor.id, platform='linux') }}" class="text-blue-500 hover:underline">Download Agent (Linux)</a>
-                        <span class="tooltiptext">
-                            Run in terminal:
-                            <br>
-                            <code>chmod +x &lt;file&gt;</code>
-                            <br>
-                            <code>./&lt;file&gt;</code>
-                        </span>
+            <div id="download-agent-section" class="pt-6" style="display: {% if monitor and monitor.server_client %}block{% else %}none{% endif %};">
+                <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Download Agent - Monitor ID: {{ monitor.id }}</h3>
+                <div class="px-6 py-4 border border-gray-200 dark:border-gray-700 rounded-lg space-y-3">
+                    <div class="flex items-center space-x-4">
+                        <div class="tooltip inline-block">
+                            <a href="{{ url_for('main.download_prebuilt_agent', platform='windows') }}" 
+                               class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors">
+                                <i class="fas fa-download mr-2"></i>
+                                Download Agent (Windows)
+                            </a>
+                            <div class="tooltiptext-large">
+                                <strong>Windows Agent Setup:</strong>
+                                <br><br>
+                                <strong>1. Download & Save:</strong>
+                                <br>Save as <code>uptime_agent.exe</code>
+                                <br><br>
+                                <strong>2. Run via Command Prompt:</strong>
+                                <br><code>uptime_agent.exe --monitor-id {{ monitor.id }}</code>
+                                <br><br>
+                                <strong>3. Run via PowerShell:</strong>
+                                <br><code>.\uptime_agent.exe --monitor-id {{ monitor.id }}</code>
+                                <br><br>
+                                <strong>Optional Parameters:</strong>
+                                <br><code>--api-endpoint http://your-server:5000/api</code>
+                                <br><code>--log-lines 100</code>
+                                <br><br>
+                                <strong>Full Example:</strong>
+                                <br><code>uptime_agent.exe --monitor-id {{ monitor.id }} --api-endpoint {{ request.url_root.rstrip('/') }}/api</code>
+                                <br><br>
+                                <em>The agent will run continuously and send system metrics to this monitor.</em>
+                            </div>
+                        </div>
+                        <div class="tooltip inline-block">
+                            <a href="{{ url_for('main.download_prebuilt_agent', platform='linux') }}" 
+                               class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors">
+                                <i class="fas fa-download mr-2"></i>
+                                Download Agent (Linux)
+                            </a>
+                            <div class="tooltiptext-large">
+                                <strong>Linux Agent Setup:</strong>
+                                <br><br>
+                                <strong>1. Download & Make Executable:</strong>
+                                <br><code>chmod +x uptime_agent</code>
+                                <br><br>
+                                <strong>2. Run the Agent:</strong>
+                                <br><code>./uptime_agent --monitor-id {{ monitor.id }}</code>
+                                <br><br>
+                                <strong>3. Run in Background:</strong>
+                                <br><code>nohup ./uptime_agent --monitor-id {{ monitor.id }} &</code>
+                                <br><br>
+                                <strong>4. Create Systemd Service (Optional):</strong>
+                                <br>Create <code>/etc/systemd/system/uptime-agent.service</code>:
+                                <br><code>[Unit]</code>
+                                <br><code>Description=Uptime Agent</code>
+                                <br><code>[Service]</code>
+                                <br><code>ExecStart=/path/to/uptime_agent --monitor-id {{ monitor.id }}</code>
+                                <br><code>[Install]</code>
+                                <br><code>WantedBy=multi-user.target</code>
+                                <br><br>
+                                <strong>Optional Parameters:</strong>
+                                <br><code>--api-endpoint {{ request.url_root.rstrip('/') }}/api</code>
+                                <br><code>--log-lines 100</code>
+                                <br><br>
+                                <em>The agent will collect CPU, RAM, disk, and network metrics.</em>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3">
+                        <h4 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Usage Instructions:</h4>
+                        <div class="mt-2 text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+                            <p><strong>Windows:</strong> <code>uptime_agent.exe --monitor-id {{ monitor.id }}</code></p>
+                            <p><strong>Linux:</strong> <code>./uptime_agent --monitor-id {{ monitor.id }}</code></p>
+                            <p class="mt-2"><strong>Environment Variables (optional):</strong></p>
+                            <p><code>UPTIME_API_ENDPOINT=http://your-server:5000/api</code></p>
+                            <p><code>UPTIME_LOG_LINES=100</code></p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -448,13 +519,19 @@ document.addEventListener('DOMContentLoaded', function() {
         testButton.addEventListener('click', testMonitor);
     }
 
-    // Show/hide agent download section based on is_agent checkbox
-    const isAgentCheckbox = document.getElementById('is_agent');
+    // Show/hide agent download section and monitor ID display based on server_client checkbox
+    const serverClientCheckbox = document.getElementById('server_client');
     const downloadAgentSection = document.getElementById('download-agent-section');
+    const monitorIdDisplay = document.getElementById('monitor-id-display');
 
-    if (isAgentCheckbox && downloadAgentSection) {
-        isAgentCheckbox.addEventListener('change', function() {
-            downloadAgentSection.style.display = this.checked ? 'block' : 'none';
+    if (serverClientCheckbox) {
+        serverClientCheckbox.addEventListener('change', function() {
+            if (downloadAgentSection) {
+                downloadAgentSection.style.display = this.checked ? 'block' : 'none';
+            }
+            if (monitorIdDisplay) {
+                monitorIdDisplay.style.display = this.checked ? 'block' : 'none';
+            }
         });
     }
 });

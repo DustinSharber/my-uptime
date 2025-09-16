@@ -191,3 +191,84 @@ input:checked ~ .block {
   visibility: visible;
   opacity: 1;
 }
+
+/* Large tooltip for detailed instructions */
+.tooltip .tooltiptext-large {
+  visibility: hidden;
+  width: 400px;
+  background-color: #1f2937;
+  color: #f9fafb;
+  text-align: left;
+  border-radius: 8px;
+  padding: 16px;
+  position: absolute;
+  z-index: 1000;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -200px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  border: 1px solid #374151;
+}
+
+/* Large tooltip arrow */
+.tooltip .tooltiptext-large::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -8px;
+  border-width: 8px;
+  border-style: solid;
+  border-color: #1f2937 transparent transparent transparent;
+}
+
+/* Show the large tooltip on hover */
+.tooltip:hover .tooltiptext-large {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Code styling within tooltips */
+.tooltiptext-large code {
+  background-color: #374151;
+  color: #fbbf24;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 11px;
+}
+
+/* Strong text in tooltips */
+.tooltiptext-large strong {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+/* Emphasis text in tooltips */
+.tooltiptext-large em {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Responsive tooltip for smaller screens */
+@media (max-width: 768px) {
+  .tooltip .tooltiptext-large {
+    width: 300px;
+    margin-left: -150px;
+    font-size: 11px;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tooltip .tooltiptext-large {
+    width: 250px;
+    margin-left: -125px;
+    font-size: 10px;
+    padding: 10px;
+  }
+}

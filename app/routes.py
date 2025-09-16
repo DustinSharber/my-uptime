@@ -1629,6 +1629,52 @@ def cleanup_data():
         
     return redirect(url_for('main.settings'))
 
+@main_bp.route('/download-prebuilt-agent')
+@admin_required
+def download_prebuilt_agent():
+    """Serve pre-built agent executables."""
+    platform = request.args.get('platform', 'windows')
+    
+    agent_dir = Path(current_app.root_path).parent / 'agent'
+    dist_dir = agent_dir / 'dist'
+    
+    if platform == 'linux':
+        # Check for binary first, then source package
+        binary_path = dist_dir / 'uptime_agent'
+        source_path = dist_dir / 'uptime_agent_linux_src.tar.gz'
+        
+        if binary_path.exists():
+            agent_path = binary_path
+            mimetype = 'application/octet-stream'
+            download_name = 'uptime_agent'
+        elif source_path.exists():
+            agent_path = source_path
+            mimetype = 'application/gzip'
+            download_name = 'uptime_agent_linux_src.tar.gz'
+        else:
+            agent_path = None
+    else:  # windows
+        agent_name = 'uptime_agent.exe'
+        agent_path = dist_dir / agent_name
+        mimetype = 'application/x-msdownload'
+        download_name = 'uptime_agent.exe'
+    
+    # Check if pre-built agent exists
+    if not agent_path or not agent_path.exists():
+        flash('Pre-built agent not found. Please build the agents first.', 'error')
+        return redirect(request.referrer or url_for('main.dashboard'))
+    
+    try:
+        return send_file(
+            agent_path,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype=mimetype
+        )
+    except Exception as e:
+        flash(f'Error downloading agent: {str(e)}', 'error')
+        return redirect(request.referrer or url_for('main.dashboard'))
+
 @main_bp.route('/monitors/<int:monitor_id>/download-agent')
 @admin_required
 def download_agent(monitor_id):
@@ -1644,38 +1690,54 @@ def download_agent(monitor_id):
 
     # Check if we're running in a Docker container
     is_docker = os.path.exists('/.dockerenv')
+    # Check if we're on Windows
+    is_windows = os.name == 'nt'
     
     # Define executable names and build approach based on platform and environment
     if platform == 'linux':
         agent_name = f'uptime_agent_linux_{monitor_id}'
         mimetype = 'application/octet-stream'
-        build_script = 'build_cross_platform.sh'
+        if is_docker:
+            build_script = 'build_cross_platform.sh'
+        elif is_windows:
+            # On Windows, use direct PyInstaller for Linux builds since shell scripts don't work
+            build_script = None  # Will use direct PyInstaller approach
+        else:
+            # Native Linux environment
+            build_script = 'build_linux.sh'
         build_platform = 'linux'
     else:  # windows
         if is_docker:
-            # In Docker containers, we'll build a Linux executable but name it for Windows download
-            # This is a compromise since true cross-compilation requires Wine
-            agent_name = f'uptime_agent_{monitor_id}'  # No .exe extension for Linux binary
-            mimetype = 'application/octet-stream'
+            # In Docker containers, we can now build true Windows executables using Wine
+            agent_name = f'uptime_agent_{monitor_id}.exe'
+            mimetype = 'application/x-msdownload'
             build_script = 'build_cross_platform.sh'
-            build_platform = 'windows'
-        else:
+        elif is_windows:
             # Native Windows environment
             agent_name = f'uptime_agent_{monitor_id}.exe'
             mimetype = 'application/x-msdownload'
             build_script = 'build.bat'
-            build_platform = 'windows'
+        else:
+            # Native Linux building Windows (would require Wine)
+            agent_name = f'uptime_agent_{monitor_id}.exe'
+            mimetype = 'application/x-msdownload'
+            build_script = 'build_cross_platform.sh'
+        build_platform = 'windows'
 
     agent_path = dist_dir / agent_name
 
     # Create a temporary, monitor-specific agent script
     temp_agent_script_path = agent_dir / f'agent_{monitor_id}.py'
-    with open(agent_dir / 'agent.py', 'r') as f:
+    with open(agent_dir / 'agent_parameterized.py', 'r') as f:
         template_code = f.read()
     
+    # Replace the argument parsing with hardcoded monitor ID while preserving parameter functionality
     custom_code = template_code.replace(
-        "API_KEY = os.environ.get('UPTIME_API_KEY', 'YOUR_DEFAULT_API_KEY')",
-        f"API_KEY = '{monitor_id}'"
+        "args = parser.parse_args()",
+        f"""# Hardcode monitor ID but preserve other arguments
+args = parser.parse_args()
+if not args.monitor_id:
+    args.monitor_id = {monitor_id}"""
     )
     
     with open(temp_agent_script_path, 'w') as f:
@@ -1686,35 +1748,57 @@ def download_agent(monitor_id):
         os.remove(agent_path)
     
     try:
-        # Use build script approach with cross-platform script
-        pyinstaller_name = f'uptime_agent_linux_{monitor_id}' if platform == 'linux' else f'uptime_agent_{monitor_id}'
-        
-        build_script_path = agent_dir / build_script
-        
-        # Ensure the build script is executable
-        build_script_path.chmod(0o755)
+        if build_script is None:
+            # Direct PyInstaller approach for Windows environments building Linux agents
+            pyinstaller_name = f'uptime_agent_linux_{monitor_id}'
+            
+            # Install PyInstaller if not already available
+            subprocess.run(['pip', 'install', 'pyinstaller'], 
+                          capture_output=True, check=True, cwd=str(agent_dir))
+            
+            # Run PyInstaller directly
+            result = subprocess.run([
+                'pyinstaller', 
+                '--onefile', 
+                '--name', pyinstaller_name,
+                '--distpath', 'dist',
+                str(temp_agent_script_path)
+            ], capture_output=True, text=True, cwd=str(agent_dir), check=False)
+            
+            if result.returncode != 0:
+                error_output = result.stdout + "\n" + result.stderr
+                raise subprocess.CalledProcessError(result.returncode, 'pyinstaller', output=error_output)
+                
+        else:
+            # Use build script approach with cross-platform script
+            pyinstaller_name = f'uptime_agent_linux_{monitor_id}' if platform == 'linux' else f'uptime_agent_{monitor_id}'
+            
+            build_script_path = agent_dir / build_script
+            
+            # Ensure the build script is executable
+            build_script_path.chmod(0o755)
 
-        # Construct the command to run the build script
-        # Pass the platform as third argument to cross-platform script
-        build_command = [
-            str(build_script_path),
-            str(temp_agent_script_path),
-            pyinstaller_name,
-            build_platform
-        ]
+            # Construct the command to run the build script
+            # Pass the platform as third argument to cross-platform script
+            build_command = [
+                str(build_script_path),
+                str(temp_agent_script_path),
+                pyinstaller_name,
+                build_platform
+            ]
 
-        # Run the build process
-        result = subprocess.run(
-            build_command,
-            capture_output=True,
-            text=True,
-            cwd=str(agent_dir),
-            check=False
-        )
+            # Run the build process
+            result = subprocess.run(
+                build_command,
+                capture_output=True,
+                text=True,
+                cwd=str(agent_dir),
+                check=False
+            )
 
-        if result.returncode != 0:
-            error_output = result.stdout + "\n" + result.stderr
-            raise subprocess.CalledProcessError(result.returncode, build_command, output=error_output)
+            if result.returncode != 0:
+                error_output = result.stdout + "\n" + result.stderr
+                raise subprocess.CalledProcessError(result.returncode, build_command, output=error_output)
 
         # Verify the executable was created
         if not agent_path.exists():
@@ -1836,6 +1920,337 @@ def import_monitors():
         flash('Invalid file type. Please upload a .zip backup file.', 'error')
         
     return redirect(url_for('main.settings'))
+
+@main_bp.route('/settings/rebuild-agents', methods=['POST'])
+@admin_required
+def rebuild_agents():
+    """Rebuild Windows agent executable with the latest code."""
+    try:
+        import sys
+        import shutil
+        
+        agent_dir = Path(current_app.root_path).parent / 'agent'
+        dist_dir = agent_dir / 'dist'
+        
+        # Clean up old Windows builds (with error handling)
+        if dist_dir.exists():
+            exe_path = dist_dir / 'uptime_agent.exe'
+            if exe_path.exists():
+                try:
+                    os.remove(exe_path)
+                except Exception as e:
+                    current_app.logger.warning(f"Could not remove old Windows executable: {e}")
+        dist_dir.mkdir(exist_ok=True)
+        
+        # Clean up build cache with more aggressive approach
+        build_dir = agent_dir / 'build'
+        if build_dir.exists():
+            try:
+                # Try multiple approaches to clean the build directory
+                for root, dirs, files in os.walk(str(build_dir), topdown=False):
+                    for name in files:
+                        try:
+                            file_path = os.path.join(root, name)
+                            os.chmod(file_path, 0o777)
+                            os.remove(file_path)
+                        except:
+                            pass
+                    for name in dirs:
+                        try:
+                            dir_path = os.path.join(root, name)
+                            os.rmdir(dir_path)
+                        except:
+                            pass
+                try:
+                    os.rmdir(str(build_dir))
+                except:
+                    pass
+            except Exception as e:
+                current_app.logger.warning(f"Could not fully clean build directory: {e}")
+        
+        # Path to the agent script
+        agent_script = agent_dir / 'agent_parameterized.py'
+        
+        if not agent_script.exists():
+            flash('Agent script not found!', 'error')
+            return redirect(url_for('main.settings'))
+        
+        # Install required packages
+        subprocess.run([sys.executable, '-m', 'pip', 'install', 'pyinstaller', 'psutil', 'requests'], 
+                      check=True, capture_output=True, timeout=300)
+        
+        # Build Windows executable
+        pyinstaller_cmd = [
+            sys.executable, '-m', 'PyInstaller',
+            '--onefile',
+            '--name', 'uptime_agent',
+            '--distpath', str(dist_dir),
+            '--workpath', str(agent_dir / 'build_temp'),
+            '--specpath', str(agent_dir),
+            '--noconfirm',
+            str(agent_script)
+        ]
+        
+        # Create clean environment for build (remove any UPTIME_* environment variables)
+        build_env = os.environ.copy()
+        # Remove any environment variables that might interfere
+        build_env.pop('UPTIME_API_ENDPOINT', None)
+        build_env.pop('UPTIME_API_KEY', None)
+        build_env.pop('UPTIME_LOG_LINES', None)
+        
+        result = subprocess.run(pyinstaller_cmd, cwd=str(agent_dir), capture_output=True, text=True, timeout=600, env=build_env)
+        
+        # Clean up temp build directory
+        temp_build_dir = agent_dir / 'build_temp'
+        if temp_build_dir.exists():
+            try:
+                shutil.rmtree(str(temp_build_dir), ignore_errors=True)
+            except:
+                pass
+        
+        if result.returncode != 0:
+            flash(f'Windows agent build failed: {result.stderr}', 'error')
+            current_app.logger.error(f"Windows agent build failed: {result.stdout}\n{result.stderr}")
+            return redirect(url_for('main.settings'))
+        
+        # Check if executable was created
+        exe_path = dist_dir / 'uptime_agent.exe'
+        if exe_path.exists():
+            file_size = exe_path.stat().st_size / (1024*1024)
+            flash(f'Windows agent rebuilt successfully! (Size: {file_size:.1f} MB)', 'success')
+        else:
+            flash('Windows agent build completed but executable not found!', 'warning')
+        
+        return redirect(url_for('main.settings'))
+        
+    except subprocess.TimeoutExpired:
+        flash('Windows agent build timed out. Please try again.', 'error')
+        return redirect(url_for('main.settings'))
+    except Exception as e:
+        flash(f'Error rebuilding Windows agent: {str(e)}', 'error')
+        current_app.logger.error(f"Windows agent rebuild error: {str(e)}")
+        return redirect(url_for('main.settings'))
+
+@main_bp.route('/settings/rebuild-linux-agents', methods=['POST'])
+@admin_required
+def rebuild_linux_agents():
+    """Rebuild Linux agent - uses Docker if available, otherwise creates Python source package."""
+    try:
+        agent_dir = Path(current_app.root_path).parent / 'agent'
+        dist_dir = agent_dir / 'dist'
+        
+        # Ensure dist directory exists
+        dist_dir.mkdir(exist_ok=True)
+        
+        # Path to the agent script
+        agent_script = agent_dir / 'agent_parameterized.py'
+        
+        if not agent_script.exists():
+            flash('Agent script not found!', 'error')
+            return redirect(url_for('main.settings'))
+        
+        # Check if Docker is available
+        docker_available = False
+        try:
+            subprocess.run(['docker', '--version'], capture_output=True, check=True)
+            docker_available = True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        
+        if docker_available:
+            # Try Docker build first
+            build_script = agent_dir / 'build_compatible_linux.sh'
+            if build_script.exists():
+                build_script.chmod(0o755)
+                
+                result = subprocess.run([
+                    str(build_script)
+                ], cwd=str(agent_dir), capture_output=True, text=True, timeout=900)
+                
+                if result.returncode == 0:
+                    linux_path = dist_dir / 'uptime_agent'
+                    if linux_path.exists():
+                        file_size = linux_path.stat().st_size / (1024*1024)
+                        flash(f'Linux binary rebuilt successfully using Docker! (Size: {file_size:.1f} MB)', 'success')
+                        return redirect(url_for('main.settings'))
+        
+        # Fallback: Create a Python source package with launcher script
+        current_app.logger.info("Docker not available or failed, creating Python source package for Linux")
+        
+        # Create Linux package directory
+        linux_pkg_dir = dist_dir / 'uptime_agent_linux_src'
+        if linux_pkg_dir.exists():
+            import shutil
+            shutil.rmtree(linux_pkg_dir)
+        linux_pkg_dir.mkdir()
+        
+        # Copy the agent script
+        import shutil
+        shutil.copy2(agent_script, linux_pkg_dir / 'agent_parameterized.py')
+        
+        # Create requirements.txt
+        with open(linux_pkg_dir / 'requirements.txt', 'w') as f:
+            f.write('psutil>=5.8.0\nrequests>=2.25.0\n')
+        
+        # Create executable launcher script
+        launcher_content = '''#!/bin/bash
+# Uptime Agent Launcher Script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Check if Python 3 is available
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &> /dev/null; then
+    PYTHON_CMD="python"
+else
+    echo "Error: Python 3 is required but not found in PATH"
+    exit 1
+fi
+
+# Check Python version
+PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+if [[ $(echo "$PYTHON_VERSION < 3.6" | bc -l) -eq 1 ]]; then
+    echo "Error: Python 3.6 or newer is required. Found: $PYTHON_VERSION"
+    exit 1
+fi
+
+# Install requirements if needed
+$PYTHON_CMD -c "import psutil, requests" 2>/dev/null || {
+    echo "Installing required packages..."
+    $PYTHON_CMD -m pip install -r "$SCRIPT_DIR/requirements.txt" || {
+        echo "Error: Failed to install requirements. Try: pip install -r requirements.txt"
+        exit 1
+    }
+}
+
+# Run the agent
+exec $PYTHON_CMD "$SCRIPT_DIR/agent_parameterized.py" "$@"
+'''
+        
+        launcher_path = linux_pkg_dir / 'uptime_agent'
+        with open(launcher_path, 'w') as f:
+            f.write(launcher_content)
+        
+        # Make launcher executable
+        launcher_path.chmod(0o755)
+        
+        # Create README
+        readme_content = '''# Uptime Agent for Linux (Python Source)
+
+This is a Python source distribution of the Uptime Agent for Linux systems.
+
+## Requirements
+- Python 3.6 or newer
+- pip (for installing dependencies)
+
+## Installation & Usage
+
+1. Extract this package to your desired location
+2. Make the launcher executable (if not already):
+   chmod +x uptime_agent
+
+3. Run the agent:
+   ./uptime_agent --monitor-id YOUR_MONITOR_ID --api-endpoint http://your-server:5000/api
+
+## Manual Installation of Dependencies
+If automatic installation fails:
+pip install -r requirements.txt
+
+## Direct Python Usage
+You can also run the agent directly:
+python3 agent_parameterized.py --monitor-id YOUR_MONITOR_ID --api-endpoint http://your-server:5000/api
+'''
+        
+        with open(linux_pkg_dir / 'README.md', 'w') as f:
+            f.write(readme_content)
+        
+        # Create a tar.gz package with detailed logging
+        import tarfile
+        tar_path = dist_dir / 'uptime_agent_linux_src.tar.gz'
+        if tar_path.exists():
+            tar_path.unlink()
+        
+        try:
+            current_app.logger.info(f"Creating tar.gz package at: {tar_path}")
+            current_app.logger.info(f"Source directory: {linux_pkg_dir}")
+            
+            # List all files that will be added
+            files_to_add = []
+            total_source_size = 0
+            for file_path in linux_pkg_dir.iterdir():
+                if file_path.is_file():
+                    file_size = file_path.stat().st_size
+                    files_to_add.append((file_path, file_size))
+                    total_source_size += file_size
+                    current_app.logger.info(f"Will add file: {file_path.name} ({file_size} bytes)")
+            
+            current_app.logger.info(f"Total source files: {len(files_to_add)}, Total size: {total_source_size} bytes")
+            
+            if not files_to_add:
+                flash('No files found to package!', 'error')
+                return redirect(url_for('main.settings'))
+            
+            # Create tar.gz with explicit file addition
+            with tarfile.open(tar_path, 'w:gz') as tar:
+                for file_path, file_size in files_to_add:
+                    arcname = f'uptime_agent_linux/{file_path.name}'
+                    current_app.logger.info(f"Adding {file_path.name} as {arcname}")
+                    tar.add(file_path, arcname=arcname)
+            
+            # Verify the tar file was created and has content
+            if tar_path.exists():
+                actual_size = tar_path.stat().st_size
+                current_app.logger.info(f"Created tar.gz with size: {actual_size} bytes")
+                
+                if actual_size > 0:
+                    file_size_mb = actual_size / (1024*1024)
+                    # Verify contents by listing
+                    try:
+                        with tarfile.open(tar_path, 'r:gz') as tar:
+                            members = tar.getnames()
+                            current_app.logger.info(f"Tar contains: {members}")
+                            
+                        # Show more precision for small files
+                        if file_size_mb < 0.01:
+                            size_display = f"{actual_size / 1024:.1f} KB"
+                        else:
+                            size_display = f"{file_size_mb:.2f} MB"
+                            
+                        flash(f'Linux Python source package created successfully! (Size: {size_display}) - Contains {len(members)} files. Docker not available, created portable Python package instead.', 'success')
+                    except Exception as verify_e:
+                        current_app.logger.error(f"Error verifying tar contents: {verify_e}")
+                        flash(f'Package created but verification failed: {verify_e}', 'warning')
+                else:
+                    flash('Failed to create Linux package - file is empty!', 'error')
+                    current_app.logger.error("Tar file created but has 0 bytes")
+            else:
+                flash('Failed to create Linux package - file not found after creation!', 'error')
+                current_app.logger.error("Tar file not found after creation attempt")
+                
+        except Exception as e:
+            current_app.logger.error(f"Error creating tar.gz: {str(e)}")
+            import traceback
+            current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
+            flash(f'Failed to create Linux package: {str(e)}', 'error')
+        finally:
+            # Clean up temp directory (but log it)
+            if linux_pkg_dir.exists():
+                current_app.logger.info(f"Cleaning up temp directory: {linux_pkg_dir}")
+                try:
+                    shutil.rmtree(linux_pkg_dir)
+                    current_app.logger.info("Temp directory cleaned up successfully")
+                except Exception as cleanup_e:
+                    current_app.logger.warning(f"Error cleaning up temp directory: {cleanup_e}")
+        
+        return redirect(url_for('main.settings'))
+        
+    except subprocess.TimeoutExpired:
+        flash('Linux build timed out. Please try again.', 'error')
+        return redirect(url_for('main.settings'))
+    except Exception as e:
+        flash(f'Error creating Linux package: {str(e)}', 'error')
+        current_app.logger.error(f"Linux build error: {str(e)}")
+        return redirect(url_for('main.settings'))
 
 @main_bp.route('/settings/reset', methods=['POST'])
 @admin_required
