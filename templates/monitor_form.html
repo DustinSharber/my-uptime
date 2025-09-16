@@ -209,7 +209,7 @@
                 <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Agent Settings</h3>
                 <div class="flex items-center">
                     <input type="checkbox" id="server_client" name="server_client"
-                           class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                           class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-0 focus:ring-offset-0"
                            {% if monitor and monitor.server_client %}checked{% endif %}>
                     <label for="server_client" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
                         Server Client
@@ -267,31 +267,30 @@
                                 Download Agent (Linux)
                             </a>
                             <div class="tooltiptext-large">
-                                <strong>Linux Agent Setup:</strong>
+                                <strong>Universal Linux Python Package:</strong>
                                 <br><br>
-                                <strong>1. Download & Make Executable:</strong>
-                                <br><code>chmod +x uptime_agent</code>
+                                <strong>1. Extract Package:</strong>
+                                <br><code>tar -xzf uptime_agent_linux.tar.gz</code>
+                                <br><code>cd uptime_agent_linux</code>
                                 <br><br>
-                                <strong>2. Run the Agent:</strong>
-                                <br><code>./uptime_agent --monitor-id {{ monitor.id }}</code>
+                                <strong>2. Quick Start (Direct Run):</strong>
+                                <br><code>./uptime_agent --monitor-id {{ monitor.id }} --api-endpoint {{ request.url_root.rstrip('/') }}/api</code>
                                 <br><br>
-                                <strong>3. Run in Background:</strong>
-                                <br><code>nohup ./uptime_agent --monitor-id {{ monitor.id }} &</code>
+                                <strong>3. System Service Install (Recommended):</strong>
+                                <br><code>sudo ./install.sh --monitor-id {{ monitor.id }} --server {{ request.url_root.rstrip('/') }}</code>
                                 <br><br>
-                                <strong>4. Create Systemd Service (Optional):</strong>
-                                <br>Create <code>/etc/systemd/system/uptime-agent.service</code>:
-                                <br><code>[Unit]</code>
-                                <br><code>Description=Uptime Agent</code>
-                                <br><code>[Service]</code>
-                                <br><code>ExecStart=/path/to/uptime_agent --monitor-id {{ monitor.id }}</code>
-                                <br><code>[Install]</code>
-                                <br><code>WantedBy=multi-user.target</code>
+                                <strong>4. System Check (Optional):</strong>
+                                <br><code>./uptime_agent --check-system</code>
                                 <br><br>
-                                <strong>Optional Parameters:</strong>
-                                <br><code>--api-endpoint {{ request.url_root.rstrip('/') }}/api</code>
-                                <br><code>--log-lines 100</code>
+                                <strong>5. Background Process:</strong>
+                                <br><code>nohup ./uptime_agent --monitor-id {{ monitor.id }} --api-endpoint {{ request.url_root.rstrip('/') }}/api > agent.log 2>&1 &</code>
                                 <br><br>
-                                <em>The agent will collect CPU, RAM, disk, and network metrics.</em>
+                                <strong>Requirements:</strong>
+                                <br>• Python 3.6+ (automatically detected)
+                                <br>• Works on any Linux distribution
+                                <br>• Dependencies installed automatically
+                                <br><br>
+                                <em>Smart launcher with auto-detection and error recovery included.</em>
                             </div>
                         </div>
                     </div>

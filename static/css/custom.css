@@ -272,3 +272,18 @@ input:checked ~ .block {
     padding: 10px;
   }
 }
+
+/* Fix for Agent Settings checkbox label highlighting */
+#server_client:checked + label,
+#server_client:not(:checked) + label {
+    background-color: transparent !important;
+    color: inherit !important;
+    text-decoration: none !important;
+}
+
+/* Ensure consistent styling for checkbox labels in dark mode */
+.dark #server_client:checked + label,
+.dark #server_client:not(:checked) + label {
+    background-color: transparent !important;
+    color: rgb(209 213 219) !important; /* text-gray-300 */
+}

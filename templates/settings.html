@@ -332,14 +332,14 @@
             <!-- Rebuild Linux Agent -->
             <div class="py-4 flex items-center justify-between">
                 <div>
-                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Rebuild Linux Agent</h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Builds a native Linux binary using PyInstaller in the container environment. Creates an optimized executable that runs directly on Linux systems.</p>
-                    <p class="text-xs text-green-600 dark:text-green-400 mt-1">✓ Running in container - will build native Linux binary</p>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Create Linux Agent Package</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Creates a universal Python distribution that works on any Linux system with Python 3.6+. Includes smart launcher, system checker, and one-click installer.</p>
+                    <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">🚀 Universal compatibility - no build dependencies required</p>
                 </div>
                 <div class="flex items-center space-x-2">
                     <form action="{{ url_for('main.rebuild_linux_agents') }}" method="POST" class="inline">
-                        <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700" onclick="this.disabled=true; this.innerHTML='<i class=\'fas fa-spinner fa-spin mr-2\'></i>Building...'; this.form.submit();">
-                            <i class="fas fa-cogs mr-2"></i>Rebuild Linux
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700" onclick="this.disabled=true; this.innerHTML='<i class=\'fas fa-spinner fa-spin mr-2\'></i>Creating...'; this.form.submit();">
+                            <i class="fab fa-linux mr-2"></i>Create Package
                         </button>
                     </form>
                     <a href="{{ url_for('main.download_prebuilt_agent', platform='linux') }}" class="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700">

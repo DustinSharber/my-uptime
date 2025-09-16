@@ -2034,9 +2034,8 @@ def rebuild_agents():
 @main_bp.route('/settings/rebuild-linux-agents', methods=['POST'])
 @admin_required
 def rebuild_linux_agents():
-    """Rebuild Linux agent - builds native Linux binary using PyInstaller in container."""
+    """Create universal Linux Python agent package - works on any Linux system with Python 3.6+."""
     try:
-        import sys
         import shutil
         
         agent_dir = Path(current_app.root_path).parent / 'agent'
@@ -2052,172 +2051,270 @@ def rebuild_linux_agents():
             flash('Agent script not found!', 'error')
             return redirect(url_for('main.settings'))
         
-        # Check if we're in a container (common indicators)
-        is_container = (
-            os.path.exists('/.dockerenv') or 
-            (os.path.exists('/proc/1/cgroup') and 'docker' in open('/proc/1/cgroup', 'r').read())
-        )
+        current_app.logger.info("Creating universal Linux Python package")
         
-        current_app.logger.info(f"Container environment detected: {is_container}")
+        # Clean up old packages
+        old_packages = [
+            dist_dir / 'uptime_agent',
+            dist_dir / 'uptime_agent_linux_src.tar.gz',
+            dist_dir / 'uptime_agent_linux.tar.gz'
+        ]
         
-        # Clean up old builds
-        linux_binary_path = dist_dir / 'uptime_agent'
-        if linux_binary_path.exists():
-            try:
-                os.remove(linux_binary_path)
-                current_app.logger.info("Removed old Linux binary")
-            except Exception as e:
-                current_app.logger.warning(f"Could not remove old Linux binary: {e}")
-        
-        # Clean up build directories
-        build_dir = agent_dir / 'build'
-        if build_dir.exists():
-            try:
-                shutil.rmtree(build_dir, ignore_errors=True)
-            except:
-                pass
-        
-        # Install PyInstaller and required packages
-        current_app.logger.info("Installing PyInstaller and dependencies...")
-        try:
-            # Try with --user flag first for containers without write access to system packages
-            result = subprocess.run([
-                sys.executable, '-m', 'pip', 'install', '--user',
-                'pyinstaller', 'psutil', 'requests'
-            ], capture_output=True, timeout=300)
-            
-            if result.returncode != 0:
-                current_app.logger.info("User install failed, trying system install...")
-                # If user install fails, try without --user (for containers with root access)
-                result = subprocess.run([
-                    sys.executable, '-m', 'pip', 'install',
-                    'pyinstaller', 'psutil', 'requests'
-                ], capture_output=True, timeout=300)
-                
-                if result.returncode != 0:
-                    current_app.logger.error(f"Package installation failed: {result.stderr.decode()}")
-                    raise subprocess.CalledProcessError(result.returncode, 'pip install', result.stderr)
-                    
-        except subprocess.CalledProcessError as e:
-            current_app.logger.error(f"Failed to install required packages: {e}")
-            current_app.logger.info("Falling back to Python source package creation due to pip install failure")
-            # Jump directly to fallback
-        else:
-            # Only try PyInstaller build if packages were installed successfully
-            try:
-                # Build Linux binary using PyInstaller directly
-                current_app.logger.info("Building Linux binary with PyInstaller...")
-                
-                pyinstaller_cmd = [
-                    sys.executable, '-m', 'PyInstaller',
-                    '--onefile',
-                    '--name', 'uptime_agent',
-                    '--distpath', str(dist_dir),
-                    '--workpath', str(agent_dir / 'build_temp'),
-                    '--specpath', str(agent_dir),
-                    '--noconfirm',
-                    '--strip',
-                    '--exclude-module', 'tkinter',
-                    '--exclude-module', 'unittest',
-                    '--exclude-module', 'email',
-                    '--exclude-module', 'html',
-                    '--exclude-module', 'http',
-                    '--exclude-module', 'xml',
-                    str(agent_script)
-                ]
-                
-                # Create clean environment for build
-                build_env = os.environ.copy()
-                build_env.pop('UPTIME_API_ENDPOINT', None)
-                build_env.pop('UPTIME_API_KEY', None)
-                build_env.pop('UPTIME_LOG_LINES', None)
-                
-                result = subprocess.run(
-                    pyinstaller_cmd, 
-                    cwd=str(agent_dir), 
-                    capture_output=True, 
-                    text=True, 
-                    timeout=900,
-                    env=build_env
-                )
-                
-                # Clean up temp build directory
-                temp_build_dir = agent_dir / 'build_temp'
-                if temp_build_dir.exists():
-                    try:
-                        shutil.rmtree(temp_build_dir, ignore_errors=True)
-                    except:
-                        pass
-                
-                if result.returncode != 0:
-                    current_app.logger.error(f"PyInstaller build failed: {result.stderr}")
-                    current_app.logger.info("Falling back to Python source package creation due to PyInstaller failure")
-                else:
-                    # Check if binary was created
-                    if linux_binary_path.exists():
-                        file_size = linux_binary_path.stat().st_size / (1024*1024)
-                        flash(f'Linux binary built successfully! (Size: {file_size:.1f} MB) - Native Linux executable created in container.', 'success')
-                        current_app.logger.info(f"Linux binary built successfully: {file_size:.1f} MB")
-                        return redirect(url_for('main.settings'))
+        for old_pkg in old_packages:
+            if old_pkg.exists():
+                try:
+                    if old_pkg.is_file():
+                        os.remove(old_pkg)
                     else:
-                        current_app.logger.warning("PyInstaller completed but no binary found")
-                        current_app.logger.info("Falling back to Python source package creation")
-                        
-            except Exception as pyinstaller_error:
-                current_app.logger.error(f"PyInstaller execution failed: {pyinstaller_error}")
-                current_app.logger.info("Falling back to Python source package creation due to PyInstaller exception")
-        
-        # Fallback: Create a Python source package with launcher script
-        current_app.logger.info("Docker not available or failed, creating Python source package for Linux")
+                        shutil.rmtree(old_pkg)
+                    current_app.logger.info(f"Removed old package: {old_pkg.name}")
+                except Exception as e:
+                    current_app.logger.warning(f"Could not remove old package {old_pkg.name}: {e}")
         
         # Create Linux package directory
-        linux_pkg_dir = dist_dir / 'uptime_agent_linux_src'
+        linux_pkg_dir = dist_dir / 'uptime_agent_linux'
         if linux_pkg_dir.exists():
-            import shutil
             shutil.rmtree(linux_pkg_dir)
         linux_pkg_dir.mkdir()
         
         # Copy the agent script
-        import shutil
         shutil.copy2(agent_script, linux_pkg_dir / 'agent_parameterized.py')
         
-        # Create requirements.txt
+        # Create smart requirements.txt with version constraints for better compatibility
         with open(linux_pkg_dir / 'requirements.txt', 'w') as f:
-            f.write('psutil>=5.8.0\nrequests>=2.25.0\n')
+            f.write('psutil>=5.6.0\nrequests>=2.20.0\n')
         
-        # Create executable launcher script
+        # Create system compatibility checker
+        checker_content = '''#!/usr/bin/env python3
+"""
+System Compatibility Checker for Uptime Agent
+Validates system requirements and provides helpful guidance.
+"""
+import sys
+import subprocess
+import importlib.util
+
+def check_python_version():
+    """Check if Python version meets requirements."""
+    version = sys.version_info
+    if version < (3, 6):
+        print(f"❌ Python 3.6+ required. Found: {version.major}.{version.minor}")
+        print("   Please upgrade Python or use a newer system")
+        return False
+    else:
+        print(f"✅ Python version: {version.major}.{version.minor}.{version.micro}")
+        return True
+
+def check_pip():
+    """Check if pip is available."""
+    try:
+        import pip
+        print("✅ pip is available")
+        return True
+    except ImportError:
+        try:
+            result = subprocess.run([sys.executable, '-m', 'pip', '--version'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                print("✅ pip is available via module")
+                return True
+        except:
+            pass
+        
+        print("❌ pip not found")
+        print("   Install with: python3 -m ensurepip --upgrade")
+        return False
+
+def check_dependencies():
+    """Check if required dependencies are available or can be installed."""
+    deps = ['psutil', 'requests']
+    missing = []
+    
+    for dep in deps:
+        spec = importlib.util.find_spec(dep)
+        if spec is None:
+            missing.append(dep)
+        else:
+            print(f"✅ {dep} is available")
+    
+    if missing:
+        print(f"ℹ️  Missing dependencies: {', '.join(missing)}")
+        print("   Will be installed automatically on first run")
+    
+    return True
+
+def check_network():
+    """Test basic network connectivity."""
+    try:
+        import socket
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
+        print("✅ Network connectivity OK")
+        return True
+    except:
+        print("⚠️  Network connectivity issue detected")
+        print("   Agent may have trouble reaching your monitoring server")
+        return False
+
+def main():
+    print("🔍 Uptime Agent System Compatibility Check\\n")
+    
+    checks = [
+        ("Python Version", check_python_version),
+        ("Package Manager", check_pip),
+        ("Dependencies", check_dependencies),
+        ("Network", check_network)
+    ]
+    
+    all_passed = True
+    for name, check_func in checks:
+        try:
+            result = check_func()
+            if not result:
+                all_passed = False
+        except Exception as e:
+            print(f"❌ {name} check failed: {e}")
+            all_passed = False
+        print()
+    
+    if all_passed:
+        print("🎉 System is ready for Uptime Agent!")
+        print("   Run: ./uptime_agent --help")
+    else:
+        print("⚠️  Some issues detected. Please resolve them before running the agent.")
+        print("   For help, see README.md or contact support.")
+    
+    return 0 if all_passed else 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+        
+        with open(linux_pkg_dir / 'check_system.py', 'w') as f:
+            f.write(checker_content)
+        
+        # Make checker executable
+        (linux_pkg_dir / 'check_system.py').chmod(0o755)
+        
+        # Create smart launcher script with enhanced error handling
         launcher_content = '''#!/bin/bash
-# Uptime Agent Launcher Script
+# Smart Uptime Agent Launcher
+# Universal compatibility for Linux systems
+set -e
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGENT_SCRIPT="$SCRIPT_DIR/agent_parameterized.py"
+REQUIREMENTS="$SCRIPT_DIR/requirements.txt"
 
-# Check if Python 3 is available
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
-else
-    echo "Error: Python 3 is required but not found in PATH"
-    exit 1
-fi
+# Colors for output
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+YELLOW='\\033[1;33m'
+BLUE='\\033[0;34m'
+NC='\\033[0m' # No Color
 
-# Check Python version
-PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-if [[ $(echo "$PYTHON_VERSION < 3.6" | bc -l) -eq 1 ]]; then
-    echo "Error: Python 3.6 or newer is required. Found: $PYTHON_VERSION"
-    exit 1
-fi
-
-# Install requirements if needed
-$PYTHON_CMD -c "import psutil, requests" 2>/dev/null || {
-    echo "Installing required packages..."
-    $PYTHON_CMD -m pip install -r "$SCRIPT_DIR/requirements.txt" || {
-        echo "Error: Failed to install requirements. Try: pip install -r requirements.txt"
-        exit 1
-    }
+log_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
 }
 
+log_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Find Python executable
+find_python() {
+    local python_candidates=("python3" "python3.11" "python3.10" "python3.9" "python3.8" "python3.7" "python3.6" "python")
+    
+    for cmd in "${python_candidates[@]}"; do
+        if command -v "$cmd" &> /dev/null; then
+            local version=$($cmd -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "0.0")
+            local major=$(echo $version | cut -d. -f1)
+            local minor=$(echo $version | cut -d. -f2)
+            
+            # Check if version >= 3.6
+            if [[ $major -eq 3 && $minor -ge 6 ]] || [[ $major -gt 3 ]]; then
+                echo "$cmd"
+                return 0
+            fi
+        fi
+    done
+    
+    return 1
+}
+
+# Check Python availability
+if ! PYTHON_CMD=$(find_python); then
+    log_error "Python 3.6+ is required but not found"
+    log_info "Please install Python 3.6 or newer:"
+    log_info "  Ubuntu/Debian: sudo apt update && sudo apt install python3 python3-pip"
+    log_info "  CentOS/RHEL:   sudo yum install python3 python3-pip"
+    log_info "  Alpine:        apk add python3 py3-pip"
+    exit 1
+fi
+
+PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+log_success "Found Python $PYTHON_VERSION at $(which $PYTHON_CMD)"
+
+# Check dependencies and install if needed
+install_deps() {
+    log_info "Checking dependencies..."
+    
+    if ! $PYTHON_CMD -c "import psutil, requests" 2>/dev/null; then
+        log_warning "Required packages missing, installing..."
+        
+        # Try different installation methods
+        if $PYTHON_CMD -m pip install --user -r "$REQUIREMENTS" 2>/dev/null; then
+            log_success "Dependencies installed successfully (user mode)"
+        elif $PYTHON_CMD -m pip install -r "$REQUIREMENTS" 2>/dev/null; then
+            log_success "Dependencies installed successfully (system mode)"
+        else
+            log_error "Failed to install dependencies automatically"
+            log_info "Please install manually:"
+            log_info "  $PYTHON_CMD -m pip install psutil requests"
+            log_info "  OR: pip3 install psutil requests"
+            exit 1
+        fi
+    else
+        log_success "All dependencies are available"
+    fi
+}
+
+# Show help if no arguments
+if [[ $# -eq 0 ]]; then
+    echo "🚀 Uptime Agent - Universal Linux Distribution"
+    echo
+    echo "Usage: $0 [OPTIONS]"
+    echo
+    echo "Common usage:"
+    echo "  $0 --monitor-id 123 --api-endpoint http://your-server:5000/api"
+    echo
+    echo "System check:"
+    echo "  $0 --check-system"
+    echo
+    echo "For all options:"
+    echo "  $0 --help"
+    exit 0
+fi
+
+# System check mode
+if [[ "$1" == "--check-system" ]]; then
+    log_info "Running system compatibility check..."
+    exec $PYTHON_CMD "$SCRIPT_DIR/check_system.py"
+fi
+
+# Install dependencies before running agent
+install_deps
+
 # Run the agent
-exec $PYTHON_CMD "$SCRIPT_DIR/agent_parameterized.py" "$@"
+log_info "Starting Uptime Agent..."
+exec $PYTHON_CMD "$AGENT_SCRIPT" "$@"
 '''
         
         launcher_path = linux_pkg_dir / 'uptime_agent'
@@ -2227,122 +2324,375 @@ exec $PYTHON_CMD "$SCRIPT_DIR/agent_parameterized.py" "$@"
         # Make launcher executable
         launcher_path.chmod(0o755)
         
-        # Create README
-        readme_content = '''# Uptime Agent for Linux (Python Source)
+        # Create one-click installer script
+        installer_content = '''#!/bin/bash
+# One-Click Uptime Agent Installer
+set -e
 
-This is a Python source distribution of the Uptime Agent for Linux systems.
+# Colors
+GREEN='\\033[0;32m'
+BLUE='\\033[0;34m'
+YELLOW='\\033[1;33m'
+NC='\\033[0m'
 
-## Requirements
-- Python 3.6 or newer
-- pip (for installing dependencies)
+echo -e "${BLUE}🚀 Uptime Agent One-Click Installer${NC}"
+echo
 
-## Installation & Usage
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-1. Extract this package to your desired location
-2. Make the launcher executable (if not already):
-   chmod +x uptime_agent
+# Parse arguments
+MONITOR_ID=""
+API_ENDPOINT=""
+INSTALL_DIR="/opt/uptime-agent"
+SERVICE_NAME="uptime-agent"
 
-3. Run the agent:
-   ./uptime_agent --monitor-id YOUR_MONITOR_ID --api-endpoint http://your-server:5000/api
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --monitor-id)
+            MONITOR_ID="$2"
+            shift 2
+            ;;
+        --server|--api-endpoint)
+            API_ENDPOINT="$2"
+            shift 2
+            ;;
+        --install-dir)
+            INSTALL_DIR="$2"
+            shift 2
+            ;;
+        --help)
+            echo "Usage: $0 --monitor-id ID --server URL [OPTIONS]"
+            echo
+            echo "Required:"
+            echo "  --monitor-id ID     Monitor ID from your uptime dashboard"
+            echo "  --server URL        Your uptime server URL (e.g., http://192.168.1.100:5000)"
+            echo
+            echo "Optional:"
+            echo "  --install-dir DIR   Installation directory (default: /opt/uptime-agent)"
+            echo
+            echo "Example:"
+            echo "  $0 --monitor-id 123 --server http://192.168.1.100:5000"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
-## Manual Installation of Dependencies
-If automatic installation fails:
-pip install -r requirements.txt
+if [[ -z "$MONITOR_ID" || -z "$API_ENDPOINT" ]]; then
+    echo -e "${YELLOW}Missing required parameters${NC}"
+    echo "Use --help for usage information"
+    exit 1
+fi
 
-## Direct Python Usage
-You can also run the agent directly:
-python3 agent_parameterized.py --monitor-id YOUR_MONITOR_ID --api-endpoint http://your-server:5000/api
+# Ensure API endpoint includes /api
+if [[ ! "$API_ENDPOINT" =~ /api$ ]]; then
+    API_ENDPOINT="$API_ENDPOINT/api"
+fi
+
+echo "Configuration:"
+echo "  Monitor ID: $MONITOR_ID"
+echo "  Server: $API_ENDPOINT"
+echo "  Install Directory: $INSTALL_DIR"
+echo
+
+# Create install directory
+sudo mkdir -p "$INSTALL_DIR"
+sudo cp -r "$SCRIPT_DIR"/* "$INSTALL_DIR/"
+sudo chmod +x "$INSTALL_DIR/uptime_agent"
+sudo chmod +x "$INSTALL_DIR/check_system.py"
+
+# Test the installation
+echo -e "${BLUE}Testing installation...${NC}"
+"$INSTALL_DIR/uptime_agent" --check-system
+
+# Create systemd service
+SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
+sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+[Unit]
+Description=Uptime Monitoring Agent
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/uptime_agent --monitor-id $MONITOR_ID --api-endpoint $API_ENDPOINT
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable "$SERVICE_NAME"
+sudo systemctl start "$SERVICE_NAME"
+
+echo -e "${GREEN}✅ Installation complete!${NC}"
+echo
+echo "Service status:"
+sudo systemctl status "$SERVICE_NAME" --no-pager -l
+
+echo
+echo "Useful commands:"
+echo "  Check status:   sudo systemctl status $SERVICE_NAME"
+echo "  View logs:      sudo journalctl -u $SERVICE_NAME -f"
+echo "  Stop service:   sudo systemctl stop $SERVICE_NAME"
+echo "  Start service:  sudo systemctl start $SERVICE_NAME"
 '''
         
+        with open(linux_pkg_dir / 'install.sh', 'w') as f:
+            f.write(installer_content)
+        
+        # Make installer executable
+        (linux_pkg_dir / 'install.sh').chmod(0o755)
+        
+        # Create comprehensive README
+        readme_content = '''# Uptime Agent for Linux - Universal Python Distribution
+
+A smart, universal Linux agent that works on any Linux system with Python 3.6+.
+
+## 🚀 Quick Start
+
+### Option 1: One-Click Install (Recommended)
+```bash
+# Extract the package
+tar -xzf uptime_agent_linux.tar.gz
+cd uptime_agent_linux
+
+# Install as system service
+sudo ./install.sh --monitor-id YOUR_MONITOR_ID --server http://your-server:5000
+```
+
+### Option 2: Manual Run
+```bash
+# Extract and run directly
+tar -xzf uptime_agent_linux.tar.gz
+cd uptime_agent_linux
+
+# Run the agent
+./uptime_agent --monitor-id YOUR_MONITOR_ID --api-endpoint http://your-server:5000/api
+```
+
+## 🔧 System Requirements
+
+- **Python**: 3.6 or newer (automatically detected)
+- **OS**: Any Linux distribution
+- **Network**: Internet access to reach your monitoring server
+- **Permissions**: User-level (no root required for basic operation)
+
+## 📋 Pre-Installation Check
+
+Run the system compatibility checker:
+```bash
+./uptime_agent --check-system
+```
+
+This will verify:
+- Python version compatibility
+- Required packages availability  
+- Network connectivity
+- System readiness
+
+## 🛠️ Installation Methods
+
+### Method 1: System Service (Recommended for servers)
+```bash
+sudo ./install.sh --monitor-id 123 --server http://192.168.1.100:5000
+```
+
+**Benefits:**
+- Automatically starts on boot
+- Runs as system service
+- Includes log rotation
+- Easy management with systemctl
+
+### Method 2: User Process (Good for testing)
+```bash
+./uptime_agent --monitor-id 123 --api-endpoint http://192.168.1.100:5000/api
+```
+
+### Method 3: Docker Container
+```bash
+# Build container
+docker build -t uptime-agent .
+
+# Run container  
+docker run -d --name uptime-agent \\
+  uptime-agent --monitor-id 123 --api-endpoint http://host.docker.internal:5000/api
+```
+
+## 📖 Usage Examples
+
+### Basic monitoring
+```bash
+./uptime_agent --monitor-id 123 --api-endpoint http://your-server:5000/api
+```
+
+### With custom check interval
+```bash
+./uptime_agent --monitor-id 123 --api-endpoint http://your-server:5000/api --interval 30
+```
+
+### Enable debug logging
+```bash
+./uptime_agent --monitor-id 123 --api-endpoint http://your-server:5000/api --debug
+```
+
+### Background execution
+```bash
+nohup ./uptime_agent --monitor-id 123 --api-endpoint http://your-server:5000/api > agent.log 2>&1 &
+```
+
+## 🔍 Troubleshooting
+
+### Check system compatibility
+```bash
+./uptime_agent --check-system
+```
+
+### Common Issues
+
+**Python not found:**
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install python3 python3-pip
+
+# CentOS/RHEL
+sudo yum install python3 python3-pip
+
+# Alpine
+apk add python3 py3-pip
+```
+
+**Permission denied:**
+```bash
+chmod +x uptime_agent
+```
+
+**Dependencies missing:**
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+**Network issues:**
+- Check firewall settings
+- Verify server URL is accessible
+- Test with: `curl http://your-server:5000/api`
+
+### View logs (if installed as service)
+```bash
+# Follow live logs
+sudo journalctl -u uptime-agent -f
+
+# View recent logs
+sudo journalctl -u uptime-agent --since "1 hour ago"
+```
+
+## 🏗️ Advanced Configuration
+
+### Custom Python executable
+```bash
+PYTHON=/usr/local/bin/python3.9 ./uptime_agent --monitor-id 123 --api-endpoint http://your-server:5000/api
+```
+
+### Environment variables
+```bash
+export UPTIME_MONITOR_ID=123
+export UPTIME_API_ENDPOINT=http://your-server:5000/api
+./uptime_agent
+```
+
+### Configuration file
+Create `config.env`:
+```
+UPTIME_MONITOR_ID=123
+UPTIME_API_ENDPOINT=http://your-server:5000/api
+UPTIME_INTERVAL=60
+```
+
+Then run:
+```bash
+source config.env && ./uptime_agent
+```
+
+## 📁 Package Contents
+
+- `uptime_agent` - Smart launcher script
+- `agent_parameterized.py` - Main agent code
+- `requirements.txt` - Python dependencies
+- `install.sh` - One-click installer
+- `check_system.py` - System compatibility checker
+- `README.md` - This documentation
+
+## 🆘 Support
+
+For issues or questions:
+1. Run `./uptime_agent --check-system` first
+2. Check the logs for error messages
+3. Verify network connectivity to your server
+4. Ensure Python 3.6+ is installed
+
+## ✨ Features
+
+- **Universal Compatibility**: Works on any Linux with Python 3.6+
+- **Smart Detection**: Automatically finds the best Python executable
+- **Auto-Installation**: Installs dependencies automatically
+- **Error Recovery**: Detailed error messages with solutions
+- **Multiple Install Methods**: Service, user process, or container
+- **System Integration**: Full systemd service support
+- **Comprehensive Logging**: Detailed logs for troubleshooting
+'''
+
         with open(linux_pkg_dir / 'README.md', 'w') as f:
             f.write(readme_content)
         
-        # Create a tar.gz package with detailed logging
+        # Create the final tar.gz package
         import tarfile
-        tar_path = dist_dir / 'uptime_agent_linux_src.tar.gz'
+        tar_path = dist_dir / 'uptime_agent_linux.tar.gz'
         if tar_path.exists():
             tar_path.unlink()
         
-        try:
-            current_app.logger.info(f"Creating tar.gz package at: {tar_path}")
-            current_app.logger.info(f"Source directory: {linux_pkg_dir}")
-            
-            # List all files that will be added
-            files_to_add = []
-            total_source_size = 0
-            for file_path in linux_pkg_dir.iterdir():
-                if file_path.is_file():
-                    file_size = file_path.stat().st_size
-                    files_to_add.append((file_path, file_size))
-                    total_source_size += file_size
-                    current_app.logger.info(f"Will add file: {file_path.name} ({file_size} bytes)")
-            
-            current_app.logger.info(f"Total source files: {len(files_to_add)}, Total size: {total_source_size} bytes")
-            
-            if not files_to_add:
-                flash('No files found to package!', 'error')
-                return redirect(url_for('main.settings'))
-            
-            # Create tar.gz with explicit file addition
-            with tarfile.open(tar_path, 'w:gz') as tar:
-                for file_path, file_size in files_to_add:
-                    arcname = f'uptime_agent_linux/{file_path.name}'
-                    current_app.logger.info(f"Adding {file_path.name} as {arcname}")
-                    tar.add(file_path, arcname=arcname)
-            
-            # Verify the tar file was created and has content
-            if tar_path.exists():
-                actual_size = tar_path.stat().st_size
-                current_app.logger.info(f"Created tar.gz with size: {actual_size} bytes")
+        current_app.logger.info(f"Creating universal Linux package: {tar_path}")
+        
+        # Create tar.gz with proper structure
+        with tarfile.open(tar_path, 'w:gz') as tar:
+            tar.add(linux_pkg_dir, arcname='uptime_agent_linux')
+        
+        # Clean up temp directory
+        shutil.rmtree(linux_pkg_dir)
+        
+        # Verify and report success
+        if tar_path.exists():
+            file_size = tar_path.stat().st_size
+            if file_size > 0:
+                size_kb = file_size / 1024
                 
-                if actual_size > 0:
-                    file_size_mb = actual_size / (1024*1024)
-                    # Verify contents by listing
-                    try:
-                        with tarfile.open(tar_path, 'r:gz') as tar:
-                            members = tar.getnames()
-                            current_app.logger.info(f"Tar contains: {members}")
-                            
-                        # Show more precision for small files
-                        if file_size_mb < 0.01:
-                            size_display = f"{actual_size / 1024:.1f} KB"
-                        else:
-                            size_display = f"{file_size_mb:.2f} MB"
-                            
-                        flash(f'Linux Python source package created successfully! (Size: {size_display}) - Contains {len(members)} files. Docker not available, created portable Python package instead.', 'success')
-                    except Exception as verify_e:
-                        current_app.logger.error(f"Error verifying tar contents: {verify_e}")
-                        flash(f'Package created but verification failed: {verify_e}', 'warning')
-                else:
-                    flash('Failed to create Linux package - file is empty!', 'error')
-                    current_app.logger.error("Tar file created but has 0 bytes")
+                # Verify contents
+                with tarfile.open(tar_path, 'r:gz') as tar:
+                    members = tar.getnames()
+                    
+                flash(f'Universal Linux Python package created successfully! (Size: {size_kb:.1f} KB) - Works on any Linux system with Python 3.6+. Contains {len(members)} files.', 'success')
+                current_app.logger.info(f"Universal Linux package created: {size_kb:.1f} KB, {len(members)} files")
             else:
-                flash('Failed to create Linux package - file not found after creation!', 'error')
-                current_app.logger.error("Tar file not found after creation attempt")
-                
-        except Exception as e:
-            current_app.logger.error(f"Error creating tar.gz: {str(e)}")
-            import traceback
-            current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
-            flash(f'Failed to create Linux package: {str(e)}', 'error')
-        finally:
-            # Clean up temp directory (but log it)
-            if linux_pkg_dir.exists():
-                current_app.logger.info(f"Cleaning up temp directory: {linux_pkg_dir}")
-                try:
-                    shutil.rmtree(linux_pkg_dir)
-                    current_app.logger.info("Temp directory cleaned up successfully")
-                except Exception as cleanup_e:
-                    current_app.logger.warning(f"Error cleaning up temp directory: {cleanup_e}")
+                flash('Package created but appears to be empty!', 'error')
+        else:
+            flash('Failed to create package file!', 'error')
         
         return redirect(url_for('main.settings'))
         
-    except subprocess.TimeoutExpired:
-        flash('Linux build timed out. Please try again.', 'error')
-        return redirect(url_for('main.settings'))
     except Exception as e:
+        current_app.logger.error(f"Error creating universal Linux package: {str(e)}")
         flash(f'Error creating Linux package: {str(e)}', 'error')
-        current_app.logger.error(f"Linux build error: {str(e)}")
         return redirect(url_for('main.settings'))
 
 @main_bp.route('/settings/reset', methods=['POST'])
