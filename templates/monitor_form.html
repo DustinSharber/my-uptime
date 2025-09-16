@@ -190,7 +190,7 @@
                 <div>
                     <label for="admin_notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Admin Notes (URL)</label>
                     <input type="text" id="admin_notes" name="admin_notes"
-                           value="{{ monitor.admin_notes if monitor else '' }}"
+                           value="{{ monitor.admin_notes if monitor and monitor.admin_notes else '' }}"
                            placeholder="https://example.com/notes"
                            class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">URL to SharePoint or other internal notes.</p>
@@ -199,7 +199,7 @@
                     <label for="admin_notes_text" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Admin Notes (Text)</label>
                     <textarea id="admin_notes_text" name="admin_notes_text" rows="4"
                               placeholder="Internal notes, documentation, or any relevant information about this monitor..."
-                              class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.admin_notes_text if monitor else '' }}</textarea>
+                              class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border">{{ monitor.admin_notes_text if monitor and monitor.admin_notes_text else '' }}</textarea>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Free-form text notes that will be saved with this monitor.</p>
                 </div>
             </div>
@@ -456,10 +456,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const sslSettings = document.getElementById('ssl-settings');
         const certExpirySettings = document.getElementById('cert-expiry-settings');
         const portSettings = document.getElementById('port-settings');
+        const urlInput = document.getElementById('url');
+        const urlLabel = document.querySelector('label[for="url"]');
         
         if (this.value === 'http' || this.value === 'https') {
             httpSettings.style.display = 'block';
             portSettings.style.display = 'none';
+            // Use URL input type for HTTP/HTTPS
+            urlInput.type = 'url';
+            urlInput.placeholder = 'https://example.com';
+            urlLabel.textContent = 'URL';
             // Show SSL settings only for HTTPS
             if (this.value === 'https') {
                 sslSettings.style.display = 'block';
@@ -472,9 +478,24 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (this.value === 'port') {
             httpSettings.style.display = 'none';
             portSettings.style.display = 'block';
+            // Use text input type for port monitoring
+            urlInput.type = 'text';
+            urlInput.placeholder = '192.168.1.1 or example.com';
+            urlLabel.textContent = 'Host';
+        } else if (this.value === 'ping') {
+            httpSettings.style.display = 'none';
+            portSettings.style.display = 'none';
+            // Use text input type for ping monitoring to allow IP addresses
+            urlInput.type = 'text';
+            urlInput.placeholder = '192.168.1.1 or example.com';
+            urlLabel.textContent = 'Host';
         } else {
             httpSettings.style.display = 'none';
             portSettings.style.display = 'none';
+            // Default to text input for other types
+            urlInput.type = 'text';
+            urlInput.placeholder = 'Host or URL';
+            urlLabel.textContent = 'URL';
         }
     });
 

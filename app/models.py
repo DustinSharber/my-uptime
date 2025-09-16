@@ -46,8 +46,8 @@ class Monitor:
         self.is_active = kwargs.get('is_active', True)
         self.verify_ssl = kwargs.get('verify_ssl', True)
         self.check_cert_expiry = kwargs.get('check_cert_expiry', False)
-        self.admin_notes = kwargs.get('admin_notes', '')
-        self.admin_notes_text = kwargs.get('admin_notes_text', '')
+        self.admin_notes = kwargs.get('admin_notes') or None
+        self.admin_notes_text = kwargs.get('admin_notes_text') or None
         self.server_client = kwargs.get('server_client', False)
         self.log_files = kwargs.get('log_files', '')
         self.created_at = kwargs.get('created_at')
