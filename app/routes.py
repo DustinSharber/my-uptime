@@ -2034,8 +2034,11 @@ def rebuild_agents():
 @main_bp.route('/settings/rebuild-linux-agents', methods=['POST'])
 @admin_required
 def rebuild_linux_agents():
-    """Rebuild Linux agent - uses Docker if available, otherwise creates Python source package."""
+    """Rebuild Linux agent - builds native Linux binary using PyInstaller in container."""
     try:
+        import sys
+        import shutil
+        
         agent_dir = Path(current_app.root_path).parent / 'agent'
         dist_dir = agent_dir / 'dist'
         
@@ -2049,30 +2052,97 @@ def rebuild_linux_agents():
             flash('Agent script not found!', 'error')
             return redirect(url_for('main.settings'))
         
-        # Check if Docker is available
-        docker_available = False
-        try:
-            subprocess.run(['docker', '--version'], capture_output=True, check=True)
-            docker_available = True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
+        # Check if we're in a container (common indicators)
+        is_container = (
+            os.path.exists('/.dockerenv') or 
+            (os.path.exists('/proc/1/cgroup') and 'docker' in open('/proc/1/cgroup', 'r').read())
+        )
         
-        if docker_available:
-            # Try Docker build first
-            build_script = agent_dir / 'build_compatible_linux.sh'
-            if build_script.exists():
-                build_script.chmod(0o755)
-                
-                result = subprocess.run([
-                    str(build_script)
-                ], cwd=str(agent_dir), capture_output=True, text=True, timeout=900)
-                
-                if result.returncode == 0:
-                    linux_path = dist_dir / 'uptime_agent'
-                    if linux_path.exists():
-                        file_size = linux_path.stat().st_size / (1024*1024)
-                        flash(f'Linux binary rebuilt successfully using Docker! (Size: {file_size:.1f} MB)', 'success')
-                        return redirect(url_for('main.settings'))
+        current_app.logger.info(f"Container environment detected: {is_container}")
+        
+        # Clean up old builds
+        linux_binary_path = dist_dir / 'uptime_agent'
+        if linux_binary_path.exists():
+            try:
+                os.remove(linux_binary_path)
+                current_app.logger.info("Removed old Linux binary")
+            except Exception as e:
+                current_app.logger.warning(f"Could not remove old Linux binary: {e}")
+        
+        # Clean up build directories
+        build_dir = agent_dir / 'build'
+        if build_dir.exists():
+            try:
+                shutil.rmtree(build_dir, ignore_errors=True)
+            except:
+                pass
+        
+        # Install PyInstaller and required packages
+        current_app.logger.info("Installing PyInstaller and dependencies...")
+        subprocess.run([
+            sys.executable, '-m', 'pip', 'install', 
+            'pyinstaller', 'psutil', 'requests'
+        ], check=True, capture_output=True, timeout=300)
+        
+        # Build Linux binary using PyInstaller directly
+        current_app.logger.info("Building Linux binary with PyInstaller...")
+        
+        pyinstaller_cmd = [
+            sys.executable, '-m', 'PyInstaller',
+            '--onefile',
+            '--name', 'uptime_agent',
+            '--distpath', str(dist_dir),
+            '--workpath', str(agent_dir / 'build_temp'),
+            '--specpath', str(agent_dir),
+            '--noconfirm',
+            '--strip',
+            '--exclude-module', 'tkinter',
+            '--exclude-module', 'unittest',
+            '--exclude-module', 'email',
+            '--exclude-module', 'html',
+            '--exclude-module', 'http',
+            '--exclude-module', 'xml',
+            str(agent_script)
+        ]
+        
+        # Create clean environment for build
+        build_env = os.environ.copy()
+        build_env.pop('UPTIME_API_ENDPOINT', None)
+        build_env.pop('UPTIME_API_KEY', None)
+        build_env.pop('UPTIME_LOG_LINES', None)
+        
+        result = subprocess.run(
+            pyinstaller_cmd, 
+            cwd=str(agent_dir), 
+            capture_output=True, 
+            text=True, 
+            timeout=900,
+            env=build_env
+        )
+        
+        # Clean up temp build directory
+        temp_build_dir = agent_dir / 'build_temp'
+        if temp_build_dir.exists():
+            try:
+                shutil.rmtree(temp_build_dir, ignore_errors=True)
+            except:
+                pass
+        
+        if result.returncode != 0:
+            flash(f'Linux binary build failed: {result.stderr}', 'error')
+            current_app.logger.error(f"Linux binary build failed: {result.stdout}\n{result.stderr}")
+            return redirect(url_for('main.settings'))
+        
+        # Check if binary was created
+        if linux_binary_path.exists():
+            file_size = linux_binary_path.stat().st_size / (1024*1024)
+            flash(f'Linux binary built successfully! (Size: {file_size:.1f} MB) - Native Linux executable created in container.', 'success')
+            current_app.logger.info(f"Linux binary built successfully: {file_size:.1f} MB")
+            return redirect(url_for('main.settings'))
+        else:
+            flash('Linux binary build completed but executable not found!', 'warning')
+            current_app.logger.warning("Linux binary build completed but executable not found")
+            return redirect(url_for('main.settings'))
         
         # Fallback: Create a Python source package with launcher script
         current_app.logger.info("Docker not available or failed, creating Python source package for Linux")
