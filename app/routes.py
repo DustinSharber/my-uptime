@@ -2079,70 +2079,93 @@ def rebuild_linux_agents():
         
         # Install PyInstaller and required packages
         current_app.logger.info("Installing PyInstaller and dependencies...")
-        subprocess.run([
-            sys.executable, '-m', 'pip', 'install', 
-            'pyinstaller', 'psutil', 'requests'
-        ], check=True, capture_output=True, timeout=300)
-        
-        # Build Linux binary using PyInstaller directly
-        current_app.logger.info("Building Linux binary with PyInstaller...")
-        
-        pyinstaller_cmd = [
-            sys.executable, '-m', 'PyInstaller',
-            '--onefile',
-            '--name', 'uptime_agent',
-            '--distpath', str(dist_dir),
-            '--workpath', str(agent_dir / 'build_temp'),
-            '--specpath', str(agent_dir),
-            '--noconfirm',
-            '--strip',
-            '--exclude-module', 'tkinter',
-            '--exclude-module', 'unittest',
-            '--exclude-module', 'email',
-            '--exclude-module', 'html',
-            '--exclude-module', 'http',
-            '--exclude-module', 'xml',
-            str(agent_script)
-        ]
-        
-        # Create clean environment for build
-        build_env = os.environ.copy()
-        build_env.pop('UPTIME_API_ENDPOINT', None)
-        build_env.pop('UPTIME_API_KEY', None)
-        build_env.pop('UPTIME_LOG_LINES', None)
-        
-        result = subprocess.run(
-            pyinstaller_cmd, 
-            cwd=str(agent_dir), 
-            capture_output=True, 
-            text=True, 
-            timeout=900,
-            env=build_env
-        )
-        
-        # Clean up temp build directory
-        temp_build_dir = agent_dir / 'build_temp'
-        if temp_build_dir.exists():
-            try:
-                shutil.rmtree(temp_build_dir, ignore_errors=True)
-            except:
-                pass
-        
-        if result.returncode != 0:
-            flash(f'Linux binary build failed: {result.stderr}', 'error')
-            current_app.logger.error(f"Linux binary build failed: {result.stdout}\n{result.stderr}")
-            return redirect(url_for('main.settings'))
-        
-        # Check if binary was created
-        if linux_binary_path.exists():
-            file_size = linux_binary_path.stat().st_size / (1024*1024)
-            flash(f'Linux binary built successfully! (Size: {file_size:.1f} MB) - Native Linux executable created in container.', 'success')
-            current_app.logger.info(f"Linux binary built successfully: {file_size:.1f} MB")
-            return redirect(url_for('main.settings'))
+        try:
+            # Try with --user flag first for containers without write access to system packages
+            result = subprocess.run([
+                sys.executable, '-m', 'pip', 'install', '--user',
+                'pyinstaller', 'psutil', 'requests'
+            ], capture_output=True, timeout=300)
+            
+            if result.returncode != 0:
+                current_app.logger.info("User install failed, trying system install...")
+                # If user install fails, try without --user (for containers with root access)
+                result = subprocess.run([
+                    sys.executable, '-m', 'pip', 'install',
+                    'pyinstaller', 'psutil', 'requests'
+                ], capture_output=True, timeout=300)
+                
+                if result.returncode != 0:
+                    current_app.logger.error(f"Package installation failed: {result.stderr.decode()}")
+                    raise subprocess.CalledProcessError(result.returncode, 'pip install', result.stderr)
+                    
+        except subprocess.CalledProcessError as e:
+            current_app.logger.error(f"Failed to install required packages: {e}")
+            current_app.logger.info("Falling back to Python source package creation due to pip install failure")
+            # Jump directly to fallback
         else:
-            flash('Linux binary build completed but executable not found!', 'warning')
-            current_app.logger.warning("Linux binary build completed but executable not found")
-            return redirect(url_for('main.settings'))
+            # Only try PyInstaller build if packages were installed successfully
+            try:
+                # Build Linux binary using PyInstaller directly
+                current_app.logger.info("Building Linux binary with PyInstaller...")
+                
+                pyinstaller_cmd = [
+                    sys.executable, '-m', 'PyInstaller',
+                    '--onefile',
+                    '--name', 'uptime_agent',
+                    '--distpath', str(dist_dir),
+                    '--workpath', str(agent_dir / 'build_temp'),
+                    '--specpath', str(agent_dir),
+                    '--noconfirm',
+                    '--strip',
+                    '--exclude-module', 'tkinter',
+                    '--exclude-module', 'unittest',
+                    '--exclude-module', 'email',
+                    '--exclude-module', 'html',
+                    '--exclude-module', 'http',
+                    '--exclude-module', 'xml',
+                    str(agent_script)
+                ]
+                
+                # Create clean environment for build
+                build_env = os.environ.copy()
+                build_env.pop('UPTIME_API_ENDPOINT', None)
+                build_env.pop('UPTIME_API_KEY', None)
+                build_env.pop('UPTIME_LOG_LINES', None)
+                
+                result = subprocess.run(
+                    pyinstaller_cmd, 
+                    cwd=str(agent_dir), 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=900,
+                    env=build_env
+                )
+                
+                # Clean up temp build directory
+                temp_build_dir = agent_dir / 'build_temp'
+                if temp_build_dir.exists():
+                    try:
+                        shutil.rmtree(temp_build_dir, ignore_errors=True)
+                    except:
+                        pass
+                
+                if result.returncode != 0:
+                    current_app.logger.error(f"PyInstaller build failed: {result.stderr}")
+                    current_app.logger.info("Falling back to Python source package creation due to PyInstaller failure")
+                else:
+                    # Check if binary was created
+                    if linux_binary_path.exists():
+                        file_size = linux_binary_path.stat().st_size / (1024*1024)
+                        flash(f'Linux binary built successfully! (Size: {file_size:.1f} MB) - Native Linux executable created in container.', 'success')
+                        current_app.logger.info(f"Linux binary built successfully: {file_size:.1f} MB")
+                        return redirect(url_for('main.settings'))
+                    else:
+                        current_app.logger.warning("PyInstaller completed but no binary found")
+                        current_app.logger.info("Falling back to Python source package creation")
+                        
+            except Exception as pyinstaller_error:
+                current_app.logger.error(f"PyInstaller execution failed: {pyinstaller_error}")
+                current_app.logger.info("Falling back to Python source package creation due to PyInstaller exception")
         
         # Fallback: Create a Python source package with launcher script
         current_app.logger.info("Docker not available or failed, creating Python source package for Linux")
