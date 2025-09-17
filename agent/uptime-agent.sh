@@ -143,7 +143,11 @@ make_request() {
     local data="$3"
     local headers="$4"
     
-    local curl_opts="-s -w \"%{http_code}\" -m 15"
+    # Create temporary files for response and status code
+    local temp_response=$(mktemp)
+    local temp_headers=$(mktemp)
+    
+    local curl_opts="-s -w \"%{http_code}\" -o \"$temp_response\" -D \"$temp_headers\" -m 15"
     
     # Add SSL bypass if enabled
     if [ "$SKIP_SSL_CHECK" = true ]; then
@@ -167,10 +171,23 @@ make_request() {
         curl_opts="$curl_opts -d '$data' -H 'Content-Type: application/json'"
     fi
     
-    # Execute curl command and capture response and status code
-    local response=$(eval curl $curl_opts "$url")
-    local status_code="${response: -3}"
-    local body="${response%???}"
+    # Execute curl command and capture status code
+    local status_code=$(eval curl $curl_opts "$url" 2>/dev/null)
+    
+    # Read response body from temp file
+    local body=""
+    if [ -f "$temp_response" ]; then
+        body=$(cat "$temp_response")
+    fi
+    
+    # Clean up temp files
+    rm -f "$temp_response" "$temp_headers" 2>/dev/null
+    
+    # Validate status code is numeric
+    if ! [[ "$status_code" =~ ^[0-9]{3}$ ]]; then
+        # If status code is not valid, try to extract from headers or default to 0
+        status_code="000"
+    fi
     
     # Return status code and body
     echo "$status_code|$body"
@@ -314,21 +331,14 @@ get_network_stats() {
 
 # Function to collect system metrics
 get_system_metrics() {
-    write_log "Collecting system metrics..."
-    
     local cpu_percent=$(get_cpu_usage)
     local ram_percent=$(get_memory_usage)
     local disks=$(get_disk_usage)
     local network=$(get_network_stats)
     
-    local metrics_json="{
-        \"cpu_percent\": $cpu_percent,
-        \"ram_percent\": $ram_percent,
-        \"disks\": $disks,
-        \"network\": $network
-    }"
+    # Construct JSON more carefully to avoid formatting issues
+    local metrics_json="{\"cpu_percent\": $cpu_percent, \"ram_percent\": $ram_percent, \"disks\": $disks, \"network\": $network}"
     
-    write_log "System metrics collected: CPU: ${cpu_percent}%, RAM: ${ram_percent}%" "SUCCESS"
     echo "$metrics_json"
 }
 
@@ -379,16 +389,34 @@ send_data() {
     local payload="$1"
     write_log "Sending data to server..."
     
+    # Debug: Always log payload preview when there's an error, or when verbose
+    write_log "Payload preview: ${payload:0:200}..." "INFO"
+    
     local headers="Authorization: Bearer $MONITOR_ID"
     local result=$(make_request "POST" "$API_ENDPOINT/agent/data" "$payload" "$headers")
     
     local status_code=$(echo "$result" | cut -d'|' -f1)
+    local response_body=$(echo "$result" | cut -d'|' -f2-)
     
-    if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 201 ]; then
-        write_log "Data sent successfully" "SUCCESS"
-        return 0
+    # Validate status code is numeric before comparison
+    if [[ "$status_code" =~ ^[0-9]{3}$ ]]; then
+        if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 201 ]; then
+            write_log "Data sent successfully" "SUCCESS"
+            return 0
+        else
+            write_log "Failed to send data: HTTP $status_code" "ERROR"
+            if [ "$VERBOSE_LOGGING" = true ]; then
+                write_log "Response body: $response_body" "ERROR"
+                write_log "Full payload sent: $payload" "ERROR"
+            fi
+            return 1
+        fi
     else
-        write_log "Failed to send data: HTTP $status_code" "ERROR"
+        write_log "Failed to send data: Invalid response - $status_code" "ERROR"
+        if [ "$VERBOSE_LOGGING" = true ]; then
+            write_log "Response body: $response_body" "ERROR"
+            write_log "Full payload sent: $payload" "ERROR"
+        fi
         return 1
     fi
 }
@@ -519,10 +547,14 @@ start_monitoring() {
     
     if [ -n "$config" ]; then
         # Extract log files from config (basic JSON parsing)
-        log_files=$(echo "$config" | grep '"log_files"' | sed 's/.*"log_files":"\([^"]*\)".*/\1/')
-        if [ -n "$log_files" ]; then
+        log_files=$(echo "$config" | grep -o '"log_files":[^,}]*' | sed 's/"log_files"://;s/^"//;s/"$//' | sed 's/null//')
+        # Only process if log_files is not null or empty
+        if [ -n "$log_files" ] && [ "$log_files" != "null" ]; then
             local log_count=$(echo "$log_files" | tr ',' '\n' | wc -l)
             write_log "Monitoring $log_count log file(s)" "INFO"
+        else
+            log_files=""
+            write_log "No log files configured for monitoring" "INFO"
         fi
     fi
     
@@ -539,11 +571,7 @@ start_monitoring() {
         local timestamp=$(date +%s)
         
         # Prepare payload
-        local payload="{
-            \"timestamp\": $timestamp,
-            \"metrics\": $metrics,
-            \"logs\": $logs
-        }"
+        local payload="{\"timestamp\": $timestamp, \"metrics\": $metrics, \"logs\": $logs}"
         
         # Send data
         send_data "$payload"
