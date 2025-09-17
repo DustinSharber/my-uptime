@@ -69,7 +69,6 @@ logs/
 # Backup files
 *.backup
 *.bak
-*.tar.gz
 *.zip
 
 # Monitoring data
