@@ -17,6 +17,12 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     wget \
     gnupg2 \
+    iputils-ping \
+    net-tools \
+    dnsutils \
+    telnet \
+    curl \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
 # Create symlinks for python3.11

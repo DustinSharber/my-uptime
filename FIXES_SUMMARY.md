@@ -70,3 +70,67 @@ Both fixes have been tested and verified:
 - Template logic properly displays empty values instead of "None"
 
 The application should now work correctly for both issues without any "None" text appearing in admin notes fields and without rejecting valid IP addresses for Ping monitors.
+
+## Issue 3: Docker Container Ping Monitor Failure ✅ FIXED
+
+**Problem:** Ping monitors worked fine on local machines but failed when running the application in Docker containers, specifically when trying to ping IP addresses like `10.32.7.92`.
+
+**Root Cause:** 
+1. **ICMP Restrictions**: Docker containers by default don't have the necessary privileges to send ICMP packets (traditional ping)
+2. **Network Isolation**: Docker's default bridge network may not have proper access to external network ranges
+3. **Missing Network Tools**: Base Docker images often lack ping utilities and network troubleshooting tools
+
+**Solution:** Implemented a **dual-approach strategy** that works in both Docker containers and local deployments:
+
+### Changes Made:
+
+1. **Enhanced Ping Monitor Logic** (`app/monitoring.py`):
+   - **Method 1**: TCP Ping (Docker-friendly) - Tests connectivity by attempting TCP connections to common ports (80, 443, 22, 21, 25, 53, 3389)
+   - **Method 2**: Traditional ICMP Ping (Fallback) - Uses system ping command when available and permitted
+   - **Cross-Platform Support**: Handles both Windows (`ping -n 1 -w <timeout_ms>`) and Linux (`ping -c 1 -W <timeout_seconds>`) ping commands
+   - **Intelligent Fallback**: If TCP ping fails, attempts ICMP ping; if ICMP fails or is unavailable, relies on TCP results
+   - **DNS Resolution**: Validates hostname resolution before attempting connections
+   - **Detailed Logging**: Provides comprehensive debug information for troubleshooting
+
+2. **Docker Image Enhancements** (`Dockerfile`):
+   - Added network troubleshooting tools:
+     - `iputils-ping` - ICMP ping utility
+     - `net-tools` - Network configuration tools  
+     - `dnsutils` - DNS lookup utilities
+     - `telnet` - Connection testing
+     - `curl` - HTTP client
+     - `netcat-traditional` - Network connection utility
+
+### How It Works:
+
+**TCP Ping Process:**
+1. **DNS Resolution**: First verifies hostname/IP can be resolved
+2. **Port Scanning**: Attempts connections to common ports with distributed timeouts
+3. **Success Criteria**: Returns UP if any port accepts connection
+4. **Error Handling**: Provides detailed error messages for troubleshooting
+
+**ICMP Ping Fallback:**
+1. If TCP ping fails, attempts traditional system ping
+2. Gracefully handles missing ping command
+3. Respects configured timeout settings
+4. Falls back to TCP results if ICMP is unavailable
+
+### Files Modified:
+- `app/monitoring.py` - Enhanced `check_ping_monitor`, added `_tcp_ping` and `_system_ping` methods
+- `Dockerfile` - Added network utilities installation
+
+### Benefits:
+✅ **Docker Compatible**: Works in restricted container environments  
+✅ **Cross-Platform**: Supports Windows and Linux deployments  
+✅ **Reliable**: Multiple methods ensure connectivity detection  
+✅ **Fast**: Optimized timeouts and efficient port testing  
+✅ **Backward Compatible**: Existing ping monitors continue to work  
+✅ **Informative**: Detailed logging for troubleshooting network issues  
+
+### Deployment:
+- **Docker**: Build with `docker build -t my-uptime .` and run normally
+- **Local Windows**: No changes needed - existing functionality enhanced
+- **Network Troubleshooting**: Added debug commands and comprehensive logging
+
+### Documentation:
+- Created `DOCKER_PING_FIX.md` with detailed implementation guide, troubleshooting steps, and usage examples

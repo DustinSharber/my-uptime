@@ -174,36 +174,101 @@ class MonitoringService:
         return check_result
     
     def check_ping_monitor(self, monitor, check_result):
-        """Check ping monitor using socket connection."""
+        """Check ping monitor using multiple methods for Docker compatibility."""
         start_time = time.time()
         
         try:
             # Extract hostname from URL
             hostname = monitor.url.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
             
+            # Method 1: Try TCP connect to port 80/443 as ping alternative
+            ping_success = self._tcp_ping(hostname, monitor.timeout)
+            
+            if not ping_success:
+                # Method 2: Try system ping command (may fail in Docker)
+                ping_success = self._system_ping(hostname, monitor.timeout)
+            
+            response_time = (time.time() - start_time) * 1000
+            check_result['response_time'] = round(response_time, 2)
+            check_result['is_up'] = ping_success
+            
+            if not ping_success and not check_result.get('error_message'):
+                check_result['error_message'] = f'Unable to reach {hostname} via TCP or ICMP ping'
+        
+        except Exception as e:
+            check_result['error_message'] = str(e)
+            logger.error(f'Error in ping monitor for {hostname}: {str(e)}')
+        
+        return check_result
+    
+    def _tcp_ping(self, hostname, timeout):
+        """TCP-based ping using common ports (Docker-friendly)."""
+        common_ports = [80, 443, 22, 21, 25, 53, 3389]
+        
+        try:
+            # First try to resolve the hostname
+            try:
+                socket.gethostbyname(hostname)
+                logger.debug(f'DNS resolution successful for {hostname}')
+            except socket.gaierror as e:
+                logger.warning(f'DNS resolution failed for {hostname}: {e}')
+                return False
+            
+            # Try to connect to common ports
+            for port in common_ports:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(min(timeout / len(common_ports), 2))  # Distribute timeout across ports
+                    result = sock.connect_ex((hostname, port))
+                    sock.close()
+                    
+                    if result == 0:
+                        logger.debug(f'TCP ping successful to {hostname}:{port}')
+                        return True
+                    
+                except Exception as e:
+                    logger.debug(f'TCP ping failed to {hostname}:{port} - {e}')
+                    continue
+            
+            logger.debug(f'TCP ping failed to all common ports for {hostname}')
+            return False
+            
+        except Exception as e:
+            logger.error(f'Error in TCP ping to {hostname}: {e}')
+            return False
+    
+    def _system_ping(self, hostname, timeout):
+        """Traditional ICMP ping using system command."""
+        try:
             # Use system ping command
-            command = ['ping', '-n', '1', '-w', str(monitor.timeout * 1000), hostname] if os.name == 'nt' else ['ping', '-c', '1', '-W', str(monitor.timeout), hostname]
+            if os.name == 'nt':  # Windows
+                command = ['ping', '-n', '1', '-w', str(int(timeout * 1000)), hostname]
+            else:  # Linux/Unix
+                command = ['ping', '-c', '1', '-W', str(int(timeout)), hostname]
+            
             result = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
-                timeout=monitor.timeout
+                timeout=timeout + 5  # Add buffer to subprocess timeout
             )
             
-            response_time = (time.time() - start_time) * 1000
-            check_result['response_time'] = round(response_time, 2)
-            
             if result.returncode == 0:
-                check_result['is_up'] = True
+                logger.debug(f'ICMP ping successful to {hostname}')
+                return True
             else:
-                check_result['error_message'] = result.stderr or 'Ping failed'
+                logger.debug(f'ICMP ping failed to {hostname}: {result.stderr}')
+                return False
         
         except subprocess.TimeoutExpired:
-            check_result['error_message'] = 'Ping timeout'
+            logger.warning(f'ICMP ping timeout to {hostname}')
+            return False
+        except FileNotFoundError:
+            logger.warning('ping command not found - falling back to TCP ping only')
+            return False
         except Exception as e:
-            check_result['error_message'] = str(e)
-        
-        return check_result
+            logger.error(f'Error in system ping to {hostname}: {e}')
+            return False
     
     def check_port_monitor(self, monitor, check_result):
         """Check port connectivity."""
