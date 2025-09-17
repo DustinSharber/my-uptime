@@ -1,0 +1,3 @@
+#!/bin/bash
+echo "Uptime Agent Launcher"
+python3 agent_parameterized.py "$@"
