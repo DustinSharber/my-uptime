@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+
+{% block title %}Settings - Python Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            <i class="fas fa-cog mr-2"></i>Settings
+        </h1>
+    </div>
+
+    <!-- General Settings -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <i class="fas fa-sliders-h mr-2"></i>General Settings
+            </h2>
+        </div>
+        <div class="px-6 py-6">
+            <form method="POST" action="{{ url_for('main.settings') }}" class="space-y-6" id="settings-form">
+                {{ form.hidden_tag() }}
+                <div class="space-y-6">
+                    <div>
+                        {{ form.timezone.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                        {{ form.timezone(class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border") }}
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Dark Mode</span>
+                        <label for="dark-mode-toggle" class="inline-flex relative items-center cursor-pointer">
+                            <input type="checkbox" id="dark-mode-toggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                    
+                    <!-- Custom Text Settings -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-4">
+                            <i class="fas fa-edit mr-2"></i>Custom Text
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                {{ form.site_name.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ form.site_name.description }}</p>
+                                {{ form.site_name(class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border", placeholder="Python Monitor") }}
+                            </div>
+                            <div>
+                                {{ form.footer_text.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ form.footer_text.description }}</p>
+                                {{ form.footer_text(class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border", placeholder="Python Monitor - Open Source Uptime Monitoring") }}
+                            </div>
+                            <div>
+                                {{ form.site_icon.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ form.site_icon.description }}</p>
+                                {{ form.site_icon(class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border", placeholder="fas fa-heartbeat") }}
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Examples: fas fa-heartbeat, fas fa-chart-line, fas fa-server, fas fa-desktop</p>
+                            </div>
+                            <div>
+                                {{ form.favicon_url.label(class="block text-sm font-medium text-gray-700 dark:text-gray-300") }}
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ form.favicon_url.description }}</p>
+                                {{ form.favicon_url(class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border", placeholder="https://example.com/favicon.ico") }}
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave empty to use default browser favicon. Supports PNG, ICO, SVG formats.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Channels -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    <i class="fas fa-bell mr-2"></i>Notification Channels
+                </h2>
+                <a href="{{ url_for('main.add_notification_channel') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    <i class="fas fa-plus mr-2"></i>Add Channel
+                </a>
+            </div>
+        </div>
+        
+        {% if channels %}
+            <div class="divide-y divide-gray-200">
+                {% for channel in channels %}
+                <div class="px-6 py-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex-shrink-0">
+                            {% if channel.channel_type == 'email' %}
+                                <i class="fas fa-envelope text-2xl text-blue-500"></i>
+                            {% elif channel.channel_type == 'webhook' %}
+                                <i class="fas fa-link text-2xl text-green-500"></i>
+                            {% elif channel.channel_type == 'slack' %}
+                                <i class="fab fa-slack text-2xl text-purple-500"></i>
+                            {% else %}
+                                <i class="fas fa-bell text-2xl text-gray-500"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ channel.name }}</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">{{ channel.channel_type.title() }} notification</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        {% if channel.is_active %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Active
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Inactive
+                            </span>
+                        {% endif %}
+                        <form action="{{ url_for('main.toggle_notification_channel', channel_id=channel.id) }}" method="POST" class="inline">
+                            <button type="submit" class="text-gray-600 hover:text-gray-800" title="{{ 'Deactivate' if channel.is_active else 'Activate' }}">
+                                <i class="fas fa-toggle-{{ 'on' if channel.is_active else 'off' }}"></i>
+                            </button>
+                        </form>
+                        <a href="{{ url_for('main.edit_notification_channel', channel_id=channel.id) }}" class="text-gray-600 hover:text-gray-800">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <form action="{{ url_for('main.delete_notification_channel', channel_id=channel.id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this channel?');">
+                            <button type="submit" class="text-red-600 hover:text-red-800">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        <form action="{{ url_for('main.test_notification_channel', channel_id=channel.id) }}" method="POST" class="inline">
+                            <button type="submit" class="text-blue-600 hover:text-blue-800" title="Send a test notification">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="px-6 py-12 text-center">
+                <i class="fas fa-bell-slash text-4xl text-gray-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No notification channels configured</h3>
+                <p class="text-gray-500 mb-4">Set up email, webhooks, or other notifications to stay informed about incidents.</p>
+                <a href="{{ url_for('main.add_notification_channel') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    <i class="fas fa-plus mr-2"></i>Add Your First Channel
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Manage Tags -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg mt-6">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <i class="fas fa-tags mr-2"></i>Manage Tags
+            </h2>
+        </div>
+        
+        {% if tags %}
+            <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                {% for tag in tags %}
+                <div class="px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium" style="background-color: {{ tag.color }}; color: #ffffff;">
+                            {{ tag.name.upper() }}
+                        </span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <form action="{{ url_for('main.delete_tag', tag_id=tag.id) }}" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this tag? This will remove the tag from all associated monitors.');">
+                            <button type="submit" class="text-red-600 hover:text-red-800">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="px-6 py-12 text-center">
+                <i class="fas fa-tags text-4xl text-gray-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No tags found</h3>
+                <p class="text-gray-500 dark:text-gray-400 mb-4">Tags are created when you add them to a monitor.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- User Management -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg mt-6">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <i class="fas fa-users mr-2"></i>User Management
+            </h2>
+        </div>
+        <div class="p-6">
+            <div class="flex items-center gap-4 mb-6">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ form.login_required.label.text }}</span>
+                <label for="login_required_toggle" class="inline-flex relative items-center cursor-pointer">
+                    {{ form.login_required(class="sr-only peer", id="login_required_toggle", form="settings-form") }}
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Create User Form -->
+                <div>
+                    <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Create New User</h3>
+                    <form method="POST" action="{{ url_for('main.settings') }}" class="space-y-4">
+                        {{ user_form.hidden_tag() }}
+                        {{ render_field(user_form.username, class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border") }}
+                        {{ render_field(user_form.password, class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border") }}
+                        {{ render_field(user_form.confirm, class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border") }}
+                        {{ render_field(user_form.role, class="mt-1 block w-full bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 px-3 py-2 border") }}
+                        <div class="pt-2">
+                            <button type="submit" name="submit_user" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                                <i class="fas fa-plus mr-2"></i>Create User
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <!-- User List -->
+                <div>
+                    <h3 class="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">Existing Users</h3>
+                    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                        {% for user in users %}
+                        <div class="py-3 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ user.username }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Role: {{ user.role.title() }}</p>
+                            </div>
+                            <div>
+                                {% if current_user.id != user.id %}
+                                <form action="{{ url_for('main.delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                    <button type="submit" class="text-red-600 hover:text-red-800">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                <i class="fas fa-tools mr-2"></i>Maintenance
+            </h2>
+        </div>
+        <div class="px-6 py-6 divide-y divide-gray-200 dark:divide-gray-700">
+            <!-- Clean Up -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Clean Up Old Data</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Remove check history older than the retention period.</p>
+                </div>
+                <form action="{{ url_for('main.cleanup_data') }}" method="POST" class="inline">
+                    <button type="submit" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
+                        Clean Up Now
+                    </button>
+                </form>
+            </div>
+
+            <!-- Export All Data -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Export All Data</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Download all application data (monitors, history, etc.) as a single JSON file.</p>
+                </div>
+                <a href="{{ url_for('main.export_data') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    Export All
+                </a>
+            </div>
+
+            <!-- Export Site Config -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Export Site Configuration</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Create a complete ZIP backup of all application data for manual download.</p>
+                </div>
+                <a href="{{ url_for('main.export_monitors') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    Download Backup
+                </a>
+            </div>
+
+            <!-- Auto Backup Configuration -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Auto Backup Configuration</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Configure automatic backups on a schedule (daily, weekly, monthly).</p>
+                </div>
+                <a href="{{ url_for('main.backup_config') }}" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                    <i class="fas fa-save mr-2"></i>Configure Backup
+                </a>
+            </div>
+
+            <!-- Import Site Config -->
+            <div class="py-4">
+                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Import Site Configuration</h4>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Restore application data from a ZIP backup file (manual or automated backup). This will overwrite existing data.</p>
+                <form action="{{ url_for('main.import_monitors') }}" method="POST" enctype="multipart/form-data" class="flex items-center space-x-2">
+                    <input type="file" name="file" required accept=".zip" class="text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+                        Restore Backup
+                    </button>
+                </form>
+            </div>
+
+            <!-- Rebuild Windows Agent -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Rebuild Windows Agent</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Rebuild the Windows agent executable with the latest code fixes.</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <form action="{{ url_for('main.rebuild_agents') }}" method="POST" class="inline">
+                        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700" onclick="this.disabled=true; this.innerHTML='<i class=\'fas fa-spinner fa-spin mr-2\'></i>Building...'; this.form.submit();">
+                            <i class="fas fa-hammer mr-2"></i>Rebuild Windows
+                        </button>
+                    </form>
+                    <a href="{{ url_for('main.download_prebuilt_agent', platform='windows') }}" class="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-download mr-1"></i>Download
+                    </a>
+                </div>
+            </div>
+
+            <!-- Rebuild Linux Agent -->
+            <div class="py-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Create Linux Agent Package</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Creates a universal Python distribution that works on any Linux system with Python 3.6+. Includes smart launcher, system checker, and one-click installer.</p>
+                    <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">🚀 Universal compatibility - no build dependencies required</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <form action="{{ url_for('main.rebuild_linux_agents') }}" method="POST" class="inline">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700" onclick="this.disabled=true; this.innerHTML='<i class=\'fas fa-spinner fa-spin mr-2\'></i>Creating...'; this.form.submit();">
+                            <i class="fab fa-linux mr-2"></i>Create Package
+                        </button>
+                    </form>
+                    <a href="{{ url_for('main.download_prebuilt_agent', platform='linux') }}" class="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-download mr-1"></i>Download
+                    </a>
+                </div>
+            </div>
+
+            <!-- Reset Data -->
+            <div class="pt-4 flex items-center justify-between">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Reset All Data</h4>
+                    <p class="text-sm text-red-500">⚠️ This will permanently delete all monitors, history, and incidents.</p>
+                </div>
+                <form action="{{ url_for('main.reset_data') }}" method="POST" class="inline">
+                    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                            onclick="return confirm('Are you sure? This will delete all application data permanently!')">
+                        Reset
+                    </button>
+                </form>
+            </div>
+            <div class="pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+                <button type="submit" name="submit_general" form="settings-form" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    <i class="fas fa-save mr-2"></i>Save Settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

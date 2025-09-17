@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Form Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .help-text { font-size: 12px; color: #666; margin-top: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Monitor Form - IP Address Fix Test</h1>
+    
+    <form id="monitorForm">
+        <div class="form-group">
+            <label for="monitor_type">Monitor Type</label>
+            <select id="monitor_type" name="monitor_type">
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+                <option value="ping">Ping</option>
+                <option value="port">Port</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="url" id="url_label">URL</label>
+            <input type="url" id="url" name="url" required placeholder="https://example.com">
+            <div class="help-text" id="url_help">The URL or endpoint to monitor</div>
+        </div>
+        
+        <div class="form-group">
+            <button type="submit">Test Form Validation</button>
+        </div>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+    </form>
+
+    <div style="margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 4px;">
+        <h3>Test Instructions:</h3>
+        <ol>
+            <li>Select <strong>Ping</strong> as the monitor type</li>
+            <li>Notice how the URL field changes to "Host" and accepts IP addresses</li>
+            <li>Try entering <code>192.168.1.133</code> - it should be accepted</li>
+            <li>Switch to HTTP/HTTPS to see URL validation return</li>
+        </ol>
+    </div>
+
+    <script>
+        // Show/hide HTTP settings and update URL field based on monitor type
+        document.getElementById('monitor_type').addEventListener('change', function() {
+            const urlInput = document.getElementById('url');
+            const urlLabel = document.getElementById('url_label');
+            const urlHelp = document.getElementById('url_help');
+            
+            if (this.value === 'http' || this.value === 'https') {
+                // Use URL input type for HTTP/HTTPS
+                urlInput.type = 'url';
+                urlInput.placeholder = 'https://example.com';
+                urlLabel.textContent = 'URL';
+                urlHelp.textContent = 'The URL to monitor (requires http:// or https://)';
+            } else if (this.value === 'port') {
+                // Use text input type for port monitoring
+                urlInput.type = 'text';
+                urlInput.placeholder = '192.168.1.1 or example.com';
+                urlLabel.textContent = 'Host';
+                urlHelp.textContent = 'The hostname or IP address to monitor';
+            } else if (this.value === 'ping') {
+                // Use text input type for ping monitoring to allow IP addresses
+                urlInput.type = 'text';
+                urlInput.placeholder = '192.168.1.1 or example.com';
+                urlLabel.textContent = 'Host';
+                urlHelp.textContent = 'The hostname or IP address to ping';
+            } else {
+                // Default to text input for other types
+                urlInput.type = 'text';
+                urlInput.placeholder = 'Host or URL';
+                urlLabel.textContent = 'URL';
+                urlHelp.textContent = 'The endpoint to monitor';
+            }
+            
+            // Clear any validation state when switching types
+            urlInput.setCustomValidity('');
+        });
+
+        // Form submission test
+        document.getElementById('monitorForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const monitorType = document.getElementById('monitor_type').value;
+            const urlValue = document.getElementById('url').value;
+            const resultDiv = document.getElementById('result');
+            
+            if (urlValue.trim() === '') {
+                resultDiv.innerHTML = '<div class="error">Please enter a URL/Host value</div>';
+                return;
+            }
+            
+            let validationMessage = '';
+            
+            if (monitorType === 'ping' || monitorType === 'port') {
+                // For ping and port, any non-empty value should be valid
+                if (urlValue.includes('192.168.1.133')) {
+                    validationMessage = '<div class="success">✅ SUCCESS: IP address "' + urlValue + '" is accepted for ' + monitorType.toUpperCase() + ' monitoring!</div>';
+                } else {
+                    validationMessage = '<div class="success">✅ SUCCESS: "' + urlValue + '" is accepted for ' + monitorType.toUpperCase() + ' monitoring!</div>';
+                }
+            } else {
+                // For HTTP/HTTPS, validate URL format
+                try {
+                    new URL(urlValue);
+                    validationMessage = '<div class="success">✅ SUCCESS: Valid URL for ' + monitorType.toUpperCase() + ' monitoring!</div>';
+                } catch (e) {
+                    validationMessage = '<div class="error">❌ ERROR: Invalid URL format for ' + monitorType.toUpperCase() + ' monitoring. URLs must include protocol (http:// or https://)</div>';
+                }
+            }
+            
+            resultDiv.innerHTML = validationMessage;
+        });
+
+        // Trigger initial state
+        document.getElementById('monitor_type').dispatchEvent(new Event('change'));
+    </script>
+</body>
+</html>

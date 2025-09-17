@@ -1,0 +1,50 @@
+# Dockerfile for building compatible uptime agent (older GLIBC)
+# Use Ubuntu 18.04 for GLIBC 2.27 compatibility
+FROM ubuntu:18.04
+
+# Install Python 3.8 and build tools
+RUN apt-get update && apt-get install -y \
+    python3.8 \
+    python3.8-dev \
+    python3.8-distutils \
+    python3-pip \
+    build-essential \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Update pip to latest version
+RUN python3.8 -m pip install --upgrade pip
+
+# Set working directory
+WORKDIR /app/agent
+
+# Copy agent files
+COPY requirements.txt .
+COPY agent.py .
+
+# Install Python dependencies
+RUN python3.8 -m pip install --no-cache-dir -r requirements.txt
+RUN python3.8 -m pip install pyinstaller
+
+# Build the agent executable with compatibility options
+RUN python3.8 -m PyInstaller \
+    --onefile \
+    --name uptime_agent_linux_compatible \
+    --strip \
+    --noupx \
+    --exclude-module tkinter \
+    --exclude-module unittest \
+    agent.py \
+    --distpath dist
+
+# Make the executable runnable
+RUN chmod +x dist/uptime_agent_linux_compatible
+
+# Create output directory
+RUN mkdir -p /output
+
+# Copy the built executable to output directory
+RUN cp dist/uptime_agent_linux_compatible /output/
+
+# Set the default command to copy the executable
+CMD ["cp", "/output/uptime_agent_linux_compatible", "/app/dist/"]
