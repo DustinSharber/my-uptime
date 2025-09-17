@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold">Command Execution History for {{ monitor.name }}</h1>
+        <a href="{{ url_for('main.monitor_commands', monitor_id=monitor.id) }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+            &larr; Back to Commands
+        </a>
+    </div>
+
+    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full leading-normal">
+                <thead>
+                    <tr>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Command Name
+                        </th>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Status
+                        </th>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Executed At
+                        </th>
+                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Output
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if history %}
+                        {% for item in history %}
+                        <tr>
+                            <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                <p class="text-gray-900 whitespace-no-wrap">{{ item.command_name }}</p>
+                            </td>
+                            <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                <span class="relative inline-block px-3 py-1 font-semibold leading-tight
+                                    {% if item.status == 'completed' %} text-green-900
+                                    {% elif item.status == 'failed' %} text-red-900
+                                    {% else %} text-yellow-900 {% endif %}">
+                                    <span aria-hidden class="absolute inset-0
+                                        {% if item.status == 'completed' %} bg-green-200
+                                        {% elif item.status == 'failed' %} bg-red-200
+                                        {% else %} bg-yellow-200 {% endif %}
+                                        opacity-50 rounded-full"></span>
+                                    <span class="relative">{{ item.status | capitalize }}</span>
+                                </span>
+                            </td>
+                            <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                <p class="text-gray-900 whitespace-no-wrap">
+                                    {{ item.executed_at | from_iso_format | format_datetime if item.executed_at else 'N/A' }}
+                                </p>
+                            </td>
+                            <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                <pre class="text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto bg-gray-50 p-2 rounded">{{ item.output or 'No output.' }}</pre>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-10">
+                                <p class="text-gray-500">No command execution history found for this monitor.</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
