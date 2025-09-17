@@ -88,13 +88,16 @@ function updateMetricsCharts(metrics, hours = 24) {
                     displayFormats: timeConfig.displayFormats
                 },
                 min: function(context) {
-                    // Set minimum time to hours ago from now
-                    const now = new Date();
-                    return new Date(now.getTime() - (hours * 60 * 60 * 1000));
+                    // Calculate min time based on actual data range, not arbitrary "now"
+                    if (!metrics || metrics.length === 0) return null;
+                    const oldestTimestamp = Math.min(...metrics.map(m => m.timestamp * 1000));
+                    return new Date(oldestTimestamp);
                 },
                 max: function(context) {
-                    // Set maximum time to now
-                    return new Date();
+                    // Calculate max time based on actual data range, not arbitrary "now"
+                    if (!metrics || metrics.length === 0) return null;
+                    const newestTimestamp = Math.max(...metrics.map(m => m.timestamp * 1000));
+                    return new Date(newestTimestamp);
                 },
                 title: {
                     display: true,

@@ -4,6 +4,10 @@ FROM ubuntu:20.04
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Set timezone to ensure consistent time handling
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Install Python 3.11 and system dependencies
 RUN apt-get update && apt-get install -y \
     software-properties-common \
@@ -77,3 +81,4 @@ ENV FLASK_ENV=production
 
 # Run wsgi.py when the container launches
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "wsgi:app"]
+
