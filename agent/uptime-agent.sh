@@ -142,12 +142,14 @@ make_request() {
     local url="$2"
     local data="$3"
     local headers="$4"
+    local file_data="$5"
+    local content_type="$6"
     
     # Create temporary files for response and status code
     local temp_response=$(mktemp)
     local temp_headers=$(mktemp)
     
-    local curl_opts="-s -w \"%{http_code}\" -o \"$temp_response\" -D \"$temp_headers\" -m 15"
+    local curl_opts="-s -w \"%{http_code}\" -o \"$temp_response\" -D \"$temp_headers\" -m 30"
     
     # Add SSL bypass if enabled
     if [ "$SKIP_SSL_CHECK" = true ]; then
@@ -166,8 +168,15 @@ make_request() {
         done <<< "$headers"
     fi
     
-    # Add data for POST requests
-    if [ -n "$data" ]; then
+    # Handle different types of data
+    if [ -n "$file_data" ] && [ -f "$file_data" ]; then
+        # File upload with multipart data
+        curl_opts="$curl_opts --data-binary @\"$file_data\""
+        if [ -n "$content_type" ]; then
+            curl_opts="$curl_opts -H \"Content-Type: $content_type\""
+        fi
+    elif [ -n "$data" ]; then
+        # Regular JSON data
         curl_opts="$curl_opts -d '$data' -H 'Content-Type: application/json'"
     fi
     
@@ -384,6 +393,113 @@ get_log_data() {
     echo "$logs_json"
 }
 
+# Function to upload log files to server
+upload_log_files() {
+    local log_files="$1"
+    local max_retries=3
+    
+    if [ -z "$log_files" ]; then
+        write_log "No log files specified for upload" "INFO"
+        return 0
+    fi
+    
+    write_log "Starting log file upload..."
+    
+    # Split log files by comma and find existing files
+    IFS=',' read -ra log_array <<< "$log_files"
+    local existing_files=()
+    local total_size=0
+    
+    for log_file in "${log_array[@]}"; do
+        log_file=$(echo "$log_file" | xargs) # trim whitespace
+        
+        if [ -z "$log_file" ]; then
+            continue
+        fi
+        
+        if [ -f "$log_file" ] && [ -s "$log_file" ]; then
+            existing_files+=("$log_file")
+            local file_size=$(stat -c%s "$log_file" 2>/dev/null || stat -f%z "$log_file" 2>/dev/null || echo "0")
+            total_size=$((total_size + file_size))
+            write_log "Found log file: $log_file ($(echo "scale=2; $file_size/1024" | bc -l 2>/dev/null || echo $((file_size/1024)))KB)"
+        elif [ -f "$log_file" ]; then
+            write_log "Skipping empty log file: $log_file" "WARNING"
+        else
+            write_log "Log file not found: $log_file" "WARNING"
+        fi
+    done
+    
+    if [ ${#existing_files[@]} -eq 0 ]; then
+        write_log "No valid log files found for upload" "WARNING"
+        return 0
+    fi
+    
+    write_log "Uploading ${#existing_files[@]} log files (total size: $(echo "scale=2; $total_size/1024" | bc -l 2>/dev/null || echo $((total_size/1024)))KB)..."
+    
+    # Create temporary file for multipart data
+    local temp_file=$(mktemp)
+    local boundary="----UptimeAgentBoundary$(date +%s)$(echo $RANDOM)"
+    
+    # Build multipart form data
+    for log_file in "${existing_files[@]}"; do
+        local filename=$(basename "$log_file")
+        
+        # Add boundary and headers
+        echo "--$boundary" >> "$temp_file"
+        echo "Content-Disposition: form-data; name=\"files\"; filename=\"$filename\"" >> "$temp_file"
+        echo "Content-Type: text/plain" >> "$temp_file"
+        echo "" >> "$temp_file"
+        
+        # Add file content
+        cat "$log_file" >> "$temp_file" 2>/dev/null || {
+            write_log "Error reading file $log_file for upload" "ERROR"
+            continue
+        }
+        echo "" >> "$temp_file"
+    done
+    
+    # Add final boundary
+    echo "--$boundary--" >> "$temp_file"
+    
+    # Prepare headers
+    local headers="Authorization: Bearer $MONITOR_ID"
+    local content_type="multipart/form-data; boundary=$boundary"
+    
+    # Upload with retry logic
+    for attempt in $(seq 1 $max_retries); do
+        local result=$(make_request "POST" "$API_ENDPOINT/agent/logs/upload" "" "$headers" "$temp_file" "$content_type")
+        local status_code=$(echo "$result" | cut -d'|' -f1)
+        local response_body=$(echo "$result" | cut -d'|' -f2-)
+        
+        if [[ "$status_code" =~ ^[0-9]{3}$ ]] && ([ "$status_code" -eq 200 ] || [ "$status_code" -eq 201 ]); then
+            if [ $attempt -gt 1 ]; then
+                write_log "Log files uploaded successfully on attempt $attempt (${#existing_files[@]} files)" "SUCCESS"
+            else
+                write_log "Log files uploaded successfully (${#existing_files[@]} files)" "SUCCESS"
+            fi
+            rm -f "$temp_file"
+            return 0
+        else
+            if [ $attempt -lt $max_retries ]; then
+                local wait_time=$((5 * attempt))
+                [ $wait_time -gt 30 ] && wait_time=30
+                write_log "Upload attempt $attempt failed: HTTP $status_code. Retrying in ${wait_time}s..." "WARNING"
+                sleep $wait_time
+            else
+                write_log "All $max_retries upload attempts failed. Last error: HTTP $status_code" "ERROR"
+                if [ "$VERBOSE_LOGGING" = true ]; then
+                    write_log "Response body: $response_body" "ERROR"
+                fi
+                rm -f "$temp_file"
+                return 1
+            fi
+        fi
+    done
+    
+    rm -f "$temp_file"
+    return 1
+}
+
 # Function to send data to server
 send_data() {
     local payload="$1"
@@ -575,6 +691,11 @@ start_monitoring() {
         
         # Send data
         send_data "$payload"
+        
+        # Upload log files (in addition to sending log content)
+        if [ -n "$log_files" ]; then
+            upload_log_files "$log_files"
+        fi
         
         # Handle commands
         handle_commands

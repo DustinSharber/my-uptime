@@ -380,3 +380,34 @@ class BackupConfig:
             return f"{minute} {hour} {self.day_of_month} * *"
         
         return None
+
+class LogFile:
+    def __init__(self, **kwargs):
+        self.id = kwargs.get('id')
+        self.monitor_id = kwargs.get('monitor_id')
+        self.filename = kwargs.get('filename')
+        self.original_path = kwargs.get('original_path')
+        self.file_size = kwargs.get('file_size', 0)
+        self.file_path = kwargs.get('file_path')  # Stored file path on server
+        self.mime_type = kwargs.get('mime_type', 'text/plain')
+        self.upload_batch = kwargs.get('upload_batch')  # Timestamp grouping
+        self.uploaded_at = kwargs.get('uploaded_at')
+        self.created_at = kwargs.get('created_at', datetime.utcnow().isoformat())
+
+    @property
+    def download_url(self):
+        """Generate download URL for the log file."""
+        return f"/api/monitors/{self.monitor_id}/logs/download/{self.id}"
+
+    @property
+    def size_formatted(self):
+        """Format file size in human-readable format."""
+        size = self.file_size
+        if size < 1024:
+            return f"{size} B"
+        elif size < 1024 * 1024:
+            return f"{size / 1024:.1f} KB"
+        elif size < 1024 * 1024 * 1024:
+            return f"{size / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size / (1024 * 1024 * 1024):.1f} GB"

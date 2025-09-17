@@ -301,6 +301,105 @@ function Get-LogData {
     return $logs
 }
 
+# Function to upload log files to server
+function Send-LogFiles {
+    param(
+        [string[]]$LogFiles,
+        [int]$MaxRetries = 3
+    )
+    
+    if (-not $LogFiles -or $LogFiles.Count -eq 0) {
+        Write-Log "No log files specified for upload" "INFO"
+        return $true
+    }
+    
+    Write-Log "Starting log file upload for $($LogFiles.Count) files..."
+    
+    # Find existing log files
+    $existingFiles = @()
+    foreach ($logFile in $LogFiles) {
+        $logFile = $logFile.Trim()
+        if (-not $logFile) { continue }
+        
+        if (Test-Path $logFile) {
+            $fileInfo = Get-Item $logFile
+            if ($fileInfo.Length -gt 0) {
+                $existingFiles += $logFile
+                Write-Log "Found log file: $logFile ($([math]::Round($fileInfo.Length / 1KB, 2)) KB)"
+            } else {
+                Write-Log "Skipping empty log file: $logFile" "WARNING"
+            }
+        } else {
+            Write-Log "Log file not found: $logFile" "WARNING"
+        }
+    }
+    
+    if ($existingFiles.Count -eq 0) {
+        Write-Log "No valid log files found for upload" "WARNING"
+        return $true
+    }
+    
+    # Prepare multipart form data
+    $boundary = [System.Guid]::NewGuid().ToString()
+    $LF = "`r`n"
+    
+    $bodyLines = @()
+    
+    foreach ($logFile in $existingFiles) {
+        try {
+            $fileName = Split-Path $logFile -Leaf
+            $fileBytes = [System.IO.File]::ReadAllBytes($logFile)
+            $fileContent = [System.Text.Encoding]::GetEncoding("iso-8859-1").GetString($fileBytes)
+            
+            $bodyLines += "--$boundary"
+            $bodyLines += "Content-Disposition: form-data; name=`"files`"; filename=`"$fileName`""
+            $bodyLines += "Content-Type: text/plain"
+            $bodyLines += ""
+            $bodyLines += $fileContent
+            
+            Write-Log "Prepared file for upload: $fileName" "INFO"
+        }
+        catch {
+            Write-Log "Error preparing file $logFile`: $($_.Exception.Message)" "ERROR"
+        }
+    }
+    
+    $bodyLines += "--$boundary--"
+    $body = $bodyLines -join $LF
+    $bodyBytes = [System.Text.Encoding]::GetEncoding("iso-8859-1").GetBytes($body)
+    
+    $headers = @{
+        'Authorization' = "Bearer $MonitorId"
+        'Content-Type' = "multipart/form-data; boundary=$boundary"
+    }
+    
+    # Retry logic for file uploads
+    for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+        $result = Invoke-APIRequest -Uri "$ApiEndpoint/agent/logs/upload" -Method "POST" -Headers $headers -Body $bodyBytes
+        
+        if ($result.Success) {
+            $uploadCount = if ($result.Data.uploaded_files) { $result.Data.uploaded_files } else { $existingFiles.Count }
+            if ($attempt -gt 1) {
+                Write-Log "Log files uploaded successfully on attempt $attempt ($uploadCount files)" "SUCCESS"
+            } else {
+                Write-Log "Log files uploaded successfully ($uploadCount files)" "SUCCESS"
+            }
+            return $true
+        } else {
+            if ($attempt -lt $MaxRetries) {
+                $waitTime = [Math]::Min(5 * $attempt, 30)
+                Write-Log "Upload attempt $attempt failed: $($result.Error). Retrying in $waitTime seconds..." "WARNING"
+                Start-Sleep -Seconds $waitTime
+            } else {
+                Write-Log "All $MaxRetries upload attempts failed. Last error: $($result.Error)" "ERROR"
+                return $false
+            }
+        }
+    }
+    
+    return $false
+}
+
 # Function to send data to server with retry logic
 function Send-Data {
     param([hashtable]$Data, [int]$MaxRetries = 3)
@@ -563,6 +662,11 @@ function Start-Monitoring {
             
             # Send data
             Send-Data -Data $payload
+            
+            # Upload log files (in addition to sending log content)
+            if ($logFiles -and $logFiles.Count -gt 0) {
+                Send-LogFiles -LogFiles $logFiles
+            }
             
             # Handle commands
             Handle-Commands

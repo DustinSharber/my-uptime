@@ -543,6 +543,32 @@ def monitor_logs(monitor_id):
                          hours=hours,
                          logs=logs_data)
 
+@main_bp.route('/monitors/<int:monitor_id>/logs/update', methods=['POST'])
+@admin_required
+def update_monitor_logs(monitor_id):
+    """Update monitor log file configuration."""
+    monitor_data = db.get_by_id('monitor', monitor_id)
+    if not monitor_data:
+        abort(404)
+    
+    try:
+        # Get form data
+        log_files = request.form.get('log_files', '').strip() or None
+        
+        # Update monitor configuration - only update log_files
+        update_data = {
+            'log_files': log_files
+        }
+        
+        db.update('monitor', monitor_id, update_data)
+        
+        flash('Log file configuration updated successfully!', 'success')
+        
+    except Exception as e:
+        flash(f'Error updating configuration: {str(e)}', 'error')
+    
+    return redirect(url_for('main.monitor_logs', monitor_id=monitor_id))
+
 @main_bp.route('/monitors/<int:monitor_id>/commands')
 @conditional_login_required
 def monitor_commands(monitor_id):

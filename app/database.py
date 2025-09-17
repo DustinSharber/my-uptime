@@ -26,6 +26,7 @@ class JsonDatabase:
             'pending_command': os.path.join(data_folder, 'pending_commands.json'),
             'user': os.path.join(data_folder, 'users.json'),
             'backup_config': os.path.join(data_folder, 'backup_configs.json'),
+            'log_file': os.path.join(data_folder, 'log_files.json'),
         }
         self._locks = {file_path: Lock() for file_path in self.model_files.values()}
         self.ensure_data_files()

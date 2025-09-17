@@ -81,4 +81,3 @@ ENV FLASK_ENV=production
 
 # Run wsgi.py when the container launches
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "wsgi:app"]
-
