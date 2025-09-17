@@ -1632,47 +1632,121 @@ def cleanup_data():
 @main_bp.route('/download-prebuilt-agent')
 @admin_required
 def download_prebuilt_agent():
-    """Serve pre-built agent executables."""
+    """Serve pre-built agent executables and PowerShell scripts."""
     platform = request.args.get('platform', 'windows')
     
-    agent_dir = Path(current_app.root_path).parent / 'agent'
-    dist_dir = agent_dir / 'dist'
+    # Fix path resolution for Docker containers and different environments
+    # Try multiple possible paths to find the agent directory
+    possible_agent_dirs = [
+        Path(current_app.root_path).parent / 'agent',  # Standard relative path
+        Path('/app/agent'),  # Docker container absolute path
+        Path.cwd() / 'agent',  # Current working directory
+        Path(__file__).parent.parent / 'agent'  # Relative to this file
+    ]
     
-    if platform == 'linux':
-        # Check for binary first, then source package
-        binary_path = dist_dir / 'uptime_agent'
-        source_path = dist_dir / 'uptime_agent_linux_src.tar.gz'
-        
-        if binary_path.exists():
-            agent_path = binary_path
-            mimetype = 'application/octet-stream'
-            download_name = 'uptime_agent'
-        elif source_path.exists():
-            agent_path = source_path
-            mimetype = 'application/gzip'
-            download_name = 'uptime_agent_linux_src.tar.gz'
-        else:
-            agent_path = None
-    else:  # windows
-        agent_name = 'uptime_agent.exe'
-        agent_path = dist_dir / agent_name
-        mimetype = 'application/x-msdownload'
-        download_name = 'uptime_agent.exe'
+    agent_dir = None
+    for potential_dir in possible_agent_dirs:
+        if potential_dir.exists():
+            agent_dir = potential_dir
+            current_app.logger.info(f"Found agent directory: {agent_dir}")
+            break
     
-    # Check if pre-built agent exists
-    if not agent_path or not agent_path.exists():
-        flash('Pre-built agent not found. Please build the agents first.', 'error')
+    if not agent_dir:
+        current_app.logger.error(f"Agent directory not found. Tried: {[str(d) for d in possible_agent_dirs]}")
+        flash('Agent directory not found. Please check the installation.', 'error')
         return redirect(request.referrer or url_for('main.dashboard'))
     
-    try:
-        return send_file(
-            agent_path,
-            as_attachment=True,
-            download_name=download_name,
-            mimetype=mimetype
-        )
-    except Exception as e:
-        flash(f'Error downloading agent: {str(e)}', 'error')
+    if platform == 'windows':
+        # Serve the PowerShell script instead of compiled executable
+        ps_script_path = agent_dir / 'uptime-agent.ps1'
+        
+        if not ps_script_path.exists():
+            current_app.logger.error(f"PowerShell script not found: {ps_script_path}")
+            flash('PowerShell agent script not found. Please check the installation.', 'error')
+            return redirect(request.referrer or url_for('main.dashboard'))
+        
+        try:
+            return send_file(
+                ps_script_path,
+                as_attachment=True,
+                download_name='uptime-agent.ps1',
+                mimetype='text/plain'
+            )
+        except Exception as e:
+            flash(f'Error downloading PowerShell script: {str(e)}', 'error')
+            return redirect(request.referrer or url_for('main.dashboard'))
+    
+    elif platform == 'linux':
+        # Check for Linux shell script first
+        sh_script_path = agent_dir / 'uptime-agent.sh'
+        
+        if sh_script_path.exists():
+            current_app.logger.info(f"Found Linux shell script: {sh_script_path}")
+            try:
+                return send_file(
+                    sh_script_path,
+                    as_attachment=True,
+                    download_name='uptime-agent.sh',
+                    mimetype='text/plain'
+                )
+            except Exception as e:
+                flash(f'Error downloading Linux shell script: {str(e)}', 'error')
+                return redirect(request.referrer or url_for('main.dashboard'))
+        
+        # Fallback to binary/package downloads
+        dist_dir = agent_dir / 'dist'
+        
+        # Ensure dist directory exists
+        if not dist_dir.exists():
+            dist_dir.mkdir(parents=True, exist_ok=True)
+            current_app.logger.warning(f"Created missing dist directory: {dist_dir}")
+        
+        # Check for binary first, then source package, then try alternative names
+        possible_paths = [
+            (dist_dir / 'uptime_agent', 'application/octet-stream', 'uptime_agent'),
+            (dist_dir / 'uptime_agent_linux_src.tar.gz', 'application/gzip', 'uptime_agent_linux_src.tar.gz'),
+            (dist_dir / 'uptime_agent_linux.tar.gz', 'application/gzip', 'uptime_agent_linux.tar.gz'),
+            # Try to find any Linux executable
+            *[(f, 'application/octet-stream', f.name) for f in dist_dir.glob('uptime_agent_linux*') if f.is_file() and not f.name.endswith('.tar.gz')]
+        ]
+        
+        agent_path = None
+        mimetype = None
+        download_name = None
+        
+        for path, mime, name in possible_paths:
+            if path.exists():
+                agent_path = path
+                mimetype = mime
+                download_name = name
+                current_app.logger.info(f"Found Linux agent: {path}")
+                break
+        
+        # Check if pre-built agent exists
+        if not agent_path or not agent_path.exists():
+            # List available files for debugging
+            try:
+                available_files = list(dist_dir.glob('*'))
+                current_app.logger.error(f"Agent not found. Platform: {platform}, Path: {agent_path}, Available files: {[f.name for f in available_files]}")
+                flash(f'Pre-built Linux agent not found. Available files: {", ".join([f.name for f in available_files]) if available_files else "none"}. Please build the Linux agents first.', 'error')
+            except Exception as e:
+                current_app.logger.error(f"Error listing files in {dist_dir}: {e}")
+                flash('Pre-built Linux agent not found. Please build the agents first.', 'error')
+            return redirect(request.referrer or url_for('main.dashboard'))
+        
+        try:
+            return send_file(
+                agent_path,
+                as_attachment=True,
+                download_name=download_name,
+                mimetype=mimetype
+            )
+        except Exception as e:
+            flash(f'Error downloading agent: {str(e)}', 'error')
+            return redirect(request.referrer or url_for('main.dashboard'))
+    
+    else:
+        flash(f'Unsupported platform: {platform}', 'error')
         return redirect(request.referrer or url_for('main.dashboard'))
 
 @main_bp.route('/monitors/<int:monitor_id>/download-agent')

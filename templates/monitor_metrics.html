@@ -138,7 +138,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const metrics = {{ metrics_json | safe }};
-    updateMetricsCharts(metrics);
+    const hours = parseInt('{{ hours }}');
+    updateMetricsCharts(metrics, hours);
 });
 </script>
 {% endblock %}

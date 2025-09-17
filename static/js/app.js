@@ -1,8 +1,63 @@
 let charts = {};
 
 // Chart update function
-function updateMetricsCharts(metrics) {
+function updateMetricsCharts(metrics, hours = 24) {
     if (!metrics || !Array.isArray(metrics) || metrics.length === 0) return;
+
+    // Determine appropriate time unit and format based on hours
+    let timeConfig;
+    
+    if (hours <= 1) {
+        // 1 hour: show every 10 minutes
+        timeConfig = {
+            unit: 'minute',
+            stepSize: 10,
+            tooltipFormat: 'HH:mm',
+            displayFormats: {
+                minute: 'HH:mm'
+            }
+        };
+    } else if (hours <= 6) {
+        // 6 hours: show every 30 minutes
+        timeConfig = {
+            unit: 'minute',
+            stepSize: 30,
+            tooltipFormat: 'HH:mm',
+            displayFormats: {
+                minute: 'HH:mm'
+            }
+        };
+    } else if (hours <= 24) {
+        // 24 hours: show every 2 hours
+        timeConfig = {
+            unit: 'hour',
+            stepSize: 2,
+            tooltipFormat: 'MMM D HH:mm',
+            displayFormats: {
+                hour: 'HH:mm'
+            }
+        };
+    } else if (hours <= 168) {
+        // 7 days: show daily
+        timeConfig = {
+            unit: 'day',
+            stepSize: 1,
+            tooltipFormat: 'MMM D',
+            displayFormats: {
+                day: 'MMM D'
+            }
+        };
+    } else {
+        // More than 7 days: show weekly
+        timeConfig = {
+            unit: 'week',
+            stepSize: 1,
+            tooltipFormat: 'MMM D',
+            displayFormats: {
+                week: 'MMM D'
+            }
+        };
+    }
 
     const commonOptions = {
         responsive: true,
@@ -27,13 +82,19 @@ function updateMetricsCharts(metrics) {
             x: {
                 type: 'time',
                 time: {
-                    unit: 'minute',
-                    tooltipFormat: 'll HH:mm', // e.g., Sep 4, 2023 5:23 PM
-                    displayFormats: {
-                        minute: 'HH:mm', // 15:20
-                        hour: 'HH:mm',   // 15:00
-                        day: 'MMM D'     // Sep 4
-                    }
+                    unit: timeConfig.unit,
+                    stepSize: timeConfig.stepSize,
+                    tooltipFormat: timeConfig.tooltipFormat,
+                    displayFormats: timeConfig.displayFormats
+                },
+                min: function(context) {
+                    // Set minimum time to hours ago from now
+                    const now = new Date();
+                    return new Date(now.getTime() - (hours * 60 * 60 * 1000));
+                },
+                max: function(context) {
+                    // Set maximum time to now
+                    return new Date();
                 },
                 title: {
                     display: true,

@@ -235,73 +235,73 @@
                         <div class="tooltip inline-block">
                             <a href="{{ url_for('main.download_prebuilt_agent', platform='windows') }}" 
                                class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors">
-                                <i class="fas fa-download mr-2"></i>
-                                Download Agent (Windows)
+                                <i class="fab fa-microsoft mr-2"></i>
+                                Download PowerShell Script (Windows)
                             </a>
                             <div class="tooltiptext-large">
-                                <strong>Windows Agent Setup:</strong>
+                                <strong>Windows PowerShell Agent Setup:</strong>
                                 <br><br>
                                 <strong>1. Download & Save:</strong>
-                                <br>Save as <code>uptime_agent.exe</code>
+                                <br>Save as <code>uptime-agent.ps1</code>
                                 <br><br>
-                                <strong>2. Run via Command Prompt:</strong>
-                                <br><code>uptime_agent.exe --monitor-id {{ monitor.id }}</code>
+                                <strong>2. Method 1 (Recommended):</strong>
+                                <br>Right-click → Properties → Check "Unblock" → OK
+                                <br>Then run: <code>.\uptime-agent.ps1 -MonitorId {{ monitor.id }} -ApiEndpoint "{{ request.url_root.rstrip('/') }}/api"</code>
                                 <br><br>
-                                <strong>3. Run via PowerShell:</strong>
-                                <br><code>.\uptime_agent.exe --monitor-id {{ monitor.id }}</code>
+                                <strong>3. Method 2 (From Command Prompt):</strong>
+                                <br><code>powershell -ExecutionPolicy Bypass -File "uptime-agent.ps1" -MonitorId {{ monitor.id }} -ApiEndpoint "{{ request.url_root.rstrip('/') }}/api"</code>
+                                <br><br>
+                                <strong>4. Method 3 (From PowerShell):</strong>
+                                <br><code>Set-ExecutionPolicy RemoteSigned -Scope CurrentUser</code>
+                                <br><code>.\uptime-agent.ps1 -MonitorId {{ monitor.id }} -ApiEndpoint "{{ request.url_root.rstrip('/') }}/api"</code>
                                 <br><br>
                                 <strong>Optional Parameters:</strong>
-                                <br><code>--api-endpoint http://your-server:5000/api</code>
-                                <br><code>--log-lines 100</code>
+                                <br><code>-VerboseLogging</code> for detailed logging
                                 <br><br>
-                                <strong>Full Example:</strong>
-                                <br><code>uptime_agent.exe --monitor-id {{ monitor.id }} --api-endpoint {{ request.url_root.rstrip('/') }}/api</code>
-                                <br><br>
-                                <em>The agent will run continuously and send system metrics to this monitor.</em>
+                                <em>✅ Fixes SSL certificate issues - Works on any Windows machine</em>
                             </div>
                         </div>
                         <div class="tooltip inline-block">
                             <a href="{{ url_for('main.download_prebuilt_agent', platform='linux') }}" 
                                class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors">
-                                <i class="fas fa-download mr-2"></i>
-                                Download Agent (Linux)
+                                <i class="fab fa-linux mr-2"></i>
+                                Download Shell Script (Linux)
                             </a>
                             <div class="tooltiptext-large">
-                                <strong>Universal Linux Python Package:</strong>
+                                <strong>Linux Shell Script Agent Setup:</strong>
                                 <br><br>
-                                <strong>1. Extract Package:</strong>
-                                <br><code>tar -xzf uptime_agent_linux.tar.gz</code>
-                                <br><code>cd uptime_agent_linux</code>
+                                <strong>1. Download & Save:</strong>
+                                <br>Save as <code>uptime-agent.sh</code>
                                 <br><br>
-                                <strong>2. Quick Start (Direct Run):</strong>
-                                <br><code>./uptime_agent --monitor-id {{ monitor.id }} --api-endpoint {{ request.url_root.rstrip('/') }}/api</code>
+                                <strong>2. Make Executable & Run:</strong>
+                                <br><code>chmod +x uptime-agent.sh</code>
+                                <br><code>./uptime-agent.sh -m {{ monitor.id }} -a "{{ request.url_root.rstrip('/') }}/api"</code>
                                 <br><br>
-                                <strong>3. System Service Install (Recommended):</strong>
-                                <br><code>sudo ./install.sh --monitor-id {{ monitor.id }} --server {{ request.url_root.rstrip('/') }}</code>
+                                <strong>3. Background Process:</strong>
+                                <br><code>nohup ./uptime-agent.sh -m {{ monitor.id }} -a "{{ request.url_root.rstrip('/') }}/api" > agent.log 2>&1 &</code>
                                 <br><br>
-                                <strong>4. System Check (Optional):</strong>
-                                <br><code>./uptime_agent --check-system</code>
+                                <strong>4. System Service (systemd):</strong>
+                                <br>Create service file in <code>/etc/systemd/system/uptime-agent.service</code>
+                                <br><code>sudo systemctl enable uptime-agent</code>
+                                <br><code>sudo systemctl start uptime-agent</code>
                                 <br><br>
-                                <strong>5. Background Process:</strong>
-                                <br><code>nohup ./uptime_agent --monitor-id {{ monitor.id }} --api-endpoint {{ request.url_root.rstrip('/') }}/api > agent.log 2>&1 &</code>
+                                <strong>Optional Parameters:</strong>
+                                <br><code>--verbose</code> for detailed logging
+                                <br><code>--run-once</code> for testing
                                 <br><br>
-                                <strong>Requirements:</strong>
-                                <br>• Python 3.6+ (automatically detected)
-                                <br>• Works on any Linux distribution
-                                <br>• Dependencies installed automatically
-                                <br><br>
-                                <em>Smart launcher with auto-detection and error recovery included.</em>
+                                <em>✅ Fixes SSL certificate issues - Universal Linux compatibility</em>
                             </div>
                         </div>
                     </div>
                     <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3">
-                        <h4 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Usage Instructions:</h4>
+                        <h4 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Quick Start Commands:</h4>
                         <div class="mt-2 text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
-                            <p><strong>Windows:</strong> <code>uptime_agent.exe --monitor-id {{ monitor.id }}</code></p>
-                            <p><strong>Linux:</strong> <code>./uptime_agent --monitor-id {{ monitor.id }}</code></p>
-                            <p class="mt-2"><strong>Environment Variables (optional):</strong></p>
-                            <p><code>UPTIME_API_ENDPOINT=http://your-server:5000/api</code></p>
-                            <p><code>UPTIME_LOG_LINES=100</code></p>
+                            <p><strong>Windows PowerShell:</strong> <code>.\uptime-agent.ps1 -MonitorId {{ monitor.id }} -ApiEndpoint "{{ request.url_root.rstrip('/') }}/api"</code></p>
+                            <p><strong>Linux Shell:</strong> <code>./uptime-agent.sh -m {{ monitor.id }} -a "{{ request.url_root.rstrip('/') }}/api"</code></p>
+                            <p class="mt-2"><strong>Features:</strong></p>
+                            <p>• Native scripts (no Python/compilation required)</p>
+                            <p>• Built-in SSL support</p>
+                            <p>• Universal compatibility</p>
                         </div>
                     </div>
                 </div>

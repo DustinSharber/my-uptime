@@ -8,6 +8,10 @@ import glob
 import argparse
 import sys
 from datetime import datetime
+import urllib3
+
+# Disable SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- Configuration ---
 # Parse command line arguments
@@ -46,7 +50,7 @@ def get_monitor_config():
     try:
         # Construct the URL to fetch monitor details
         monitor_url = f"{API_ENDPOINT}/monitors/{API_KEY}"
-        response = requests.get(monitor_url, headers=headers, timeout=15)
+        response = requests.get(monitor_url, headers=headers, timeout=15, verify=False)
         if response.status_code == 200:
             return response.json()
         else:
@@ -84,17 +88,35 @@ def get_system_metrics():
         'network': {}
     }
 
-    # Get disk usage for all drives
+    # Get disk usage for all drives, but skip CD/DVD/removable media drives
     for partition in psutil.disk_partitions(all=True):
+        # Skip CD/DVD drives and other removable media
+        if 'cdrom' in partition.opts or partition.fstype == 'iso9660':
+            continue
+        
         try:
+            # Additional check for Windows - skip if drive is not ready
+            if os.name == 'nt':  # Windows
+                try:
+                    # Test if the drive is accessible by checking if we can stat it
+                    os.stat(partition.mountpoint)
+                except (OSError, FileNotFoundError):
+                    # Drive not ready (like DVD drive without media)
+                    print(f"Skipping {partition.device}: drive not ready or no media")
+                    continue
+            
             disk = psutil.disk_usage(partition.mountpoint)
             metrics['disks'][partition.device] = {
                 'total': disk.total,
                 'used': disk.used,
                 'free': disk.free,
                 'percent': disk.percent,
-                'mountpoint': partition.mountpoint
+                'mountpoint': partition.mountpoint,
+                'fstype': partition.fstype
             }
+        except PermissionError:
+            print(f"Permission denied accessing {partition.device}")
+            continue
         except Exception as e:
             print(f"Could not get disk usage for {partition.device}: {e}")
             continue
@@ -126,7 +148,7 @@ def send_data(data):
         'Authorization': f'Bearer {API_KEY}'
     }
     try:
-        response = requests.post(f"{API_ENDPOINT}/agent/data", data=json.dumps(data), headers=headers, timeout=15)
+        response = requests.post(f"{API_ENDPOINT}/agent/data", data=json.dumps(data), headers=headers, timeout=15, verify=False)
         if response.status_code == 200:
             print(f"Successfully sent data")
         else:
@@ -138,7 +160,7 @@ def fetch_commands():
     """Fetches pending commands from the server."""
     headers = {'Authorization': f'Bearer {API_KEY}'}
     try:
-        response = requests.get(f"{API_ENDPOINT}/agent/commands", headers=headers, timeout=10)
+        response = requests.get(f"{API_ENDPOINT}/agent/commands", headers=headers, timeout=10, verify=False)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -195,7 +217,7 @@ def update_command_status(command_id, result):
     }
     try:
         url = f"{API_ENDPOINT}/agent/commands/{command_id}/update"
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response = requests.post(url, json=payload, headers=headers, timeout=10, verify=False)
         response.raise_for_status()
         print(f"Successfully updated status for command {command_id}.")
     except requests.exceptions.RequestException as e:

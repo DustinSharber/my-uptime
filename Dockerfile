@@ -54,6 +54,9 @@ COPY . .
 # Create necessary directories and set proper permissions
 RUN mkdir -p /app/agent/dist /app/data /app/logs /app/instance && \
     chmod +x /app/agent/build_linux.sh && \
+    ls -la /app/agent/dist/ && \
+    echo "Pre-built agents available:" && \
+    find /app/agent/dist -name "*.exe" -o -name "*.tar.gz" -o -name "uptime_agent" | head -10 && \
     chown -R appuser:appuser /app
 
 # Switch to non-root user

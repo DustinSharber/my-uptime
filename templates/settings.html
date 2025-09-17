@@ -311,42 +311,48 @@
                 </form>
             </div>
 
-            <!-- Rebuild Windows Agent -->
+            <!-- Windows PowerShell Agent -->
             <div class="py-4 flex items-center justify-between">
                 <div>
-                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Rebuild Windows Agent</h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Rebuild the Windows agent executable with the latest code fixes.</p>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Windows PowerShell Agent</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Native PowerShell monitoring agent with built-in SSL support. No installation or compilation required.</p>
+                    <p class="text-xs text-green-600 dark:text-green-400 mt-1">✅ Fixes SSL certificate issues - Works on any Windows machine</p>
+                    <div class="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
+                        <p><strong>💡 Method 1 (Recommended):</strong> Right-click the downloaded file → Properties → Check "Unblock" → OK</p>
+                        <p><strong>💡 Method 2:</strong> From Command Prompt (cmd), not PowerShell:</p>
+                        <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded block text-xs">powershell -ExecutionPolicy Bypass -File "uptime-agent.ps1" -MonitorId 1 -ApiEndpoint "https://your-server.com"</code>
+                        <p><strong>💡 Method 3:</strong> From PowerShell (after setting execution policy):</p>
+                        <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded block text-xs">Set-ExecutionPolicy RemoteSigned -Scope CurrentUser</code>
+                        <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded block text-xs">.\uptime-agent.ps1 -MonitorId 1 -ApiEndpoint "https://your-server.com"</code>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Add <code>-VerboseLogging</code> for detailed logging</p>
+                    </div>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <form action="{{ url_for('main.rebuild_agents') }}" method="POST" class="inline">
-                        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700" onclick="this.disabled=true; this.innerHTML='<i class=\'fas fa-spinner fa-spin mr-2\'></i>Building...'; this.form.submit();">
-                            <i class="fas fa-hammer mr-2"></i>Rebuild Windows
-                        </button>
-                    </form>
-                    <a href="{{ url_for('main.download_prebuilt_agent', platform='windows') }}" class="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700">
-                        <i class="fas fa-download mr-1"></i>Download
+                    <a href="{{ url_for('main.download_prebuilt_agent', platform='windows') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fab fa-microsoft mr-2"></i>Download PowerShell Script
                     </a>
                 </div>
             </div>
 
-            <!-- Rebuild Linux Agent -->
+            <!-- Linux Shell Agent -->
             <div class="py-4 flex items-center justify-between">
                 <div>
-                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Create Linux Agent Package</h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Creates a universal Python distribution that works on any Linux system with Python 3.6+. Includes smart launcher, system checker, and one-click installer.</p>
-                    <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">🚀 Universal compatibility - no build dependencies required</p>
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Linux Shell Script Agent</h4>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Native Bash shell monitoring agent with built-in SSL support. Uses standard Linux commands (curl, df, free). Works on any Linux system.</p>
+                    <p class="text-xs text-green-600 dark:text-green-400 mt-1">✅ Fixes SSL certificate issues - Universal Linux compatibility</p>
+                    <div class="text-xs text-blue-600 dark:text-blue-400 mt-2 space-y-1">
+                        <p><strong>💡 Usage:</strong> Make executable and run:</p>
+                        <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded block text-xs">chmod +x uptime-agent.sh && ./uptime-agent.sh -m 1 -a "https://your-server.com/api"</code>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Add <code>--verbose</code> for detailed logging, <code>--run-once</code> for testing</p>
+                    </div>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <form action="{{ url_for('main.rebuild_linux_agents') }}" method="POST" class="inline">
-                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700" onclick="this.disabled=true; this.innerHTML='<i class=\'fas fa-spinner fa-spin mr-2\'></i>Creating...'; this.form.submit();">
-                            <i class="fab fa-linux mr-2"></i>Create Package
-                        </button>
-                    </form>
-                    <a href="{{ url_for('main.download_prebuilt_agent', platform='linux') }}" class="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700">
-                        <i class="fas fa-download mr-1"></i>Download
+                    <a href="{{ url_for('main.download_prebuilt_agent', platform='linux') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fab fa-linux mr-2"></i>Download Shell Script
                     </a>
                 </div>
             </div>
+
 
             <!-- Reset Data -->
             <div class="pt-4 flex items-center justify-between">
