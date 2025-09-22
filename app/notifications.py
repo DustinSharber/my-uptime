@@ -35,7 +35,7 @@ class NotificationService:
             return False
     
     def send_email_notification(self, channel: Dict[str, Any], incident_type: str, monitor: Any, incident: Any = None):
-        """Send email notification."""
+        """Send email notification with enhanced Gmail support and error handling."""
         try:
             config = channel.get('config', {})
             
@@ -44,7 +44,7 @@ class NotificationService:
             smtp_port = config.get('smtp_port')
             username = config.get('smtp_username')
             password = config.get('smtp_password')
-            from_email = username or 'monitor@example.com' # Use username as from_email if available
+            from_email = username or 'monitor@example.com'
             to_email = config.get('email_to')
             use_tls = config.get('use_tls', False)
             use_ssl = config.get('use_ssl', False)
@@ -52,6 +52,24 @@ class NotificationService:
             if not all([smtp_server, smtp_port, to_email]):
                 logger.error('SMTP server, port, and recipient email are required.')
                 return False
+
+            # Enhanced Gmail configuration detection and optimization
+            is_gmail = 'gmail.com' in smtp_server.lower()
+            if is_gmail:
+                logger.info('Gmail SMTP detected, applying Gmail-specific optimizations')
+                # Gmail specific settings
+                if smtp_port == 587:
+                    use_tls = True
+                    use_ssl = False
+                elif smtp_port == 465:
+                    use_ssl = True
+                    use_tls = False
+                else:
+                    # Default Gmail settings
+                    smtp_port = 587
+                    use_tls = True
+                    use_ssl = False
+                    logger.info(f'Gmail: Using default port 587 with TLS')
 
             # Create message
             msg = MIMEMultipart()
@@ -63,29 +81,93 @@ class NotificationService:
             body = self._get_email_body(incident_type, monitor, incident)
             msg.attach(MIMEText(body, 'html'))
             
-            # Send email
+            # Send email with enhanced error handling and connection management
             server = None
             try:
+                logger.info(f'Connecting to SMTP server: {smtp_server}:{smtp_port} (SSL: {use_ssl}, TLS: {use_tls})')
+                
+                # Enhanced connection handling
                 if use_ssl:
-                    server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+                    # Use SMTP_SSL for SSL connections (port 465)
+                    server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
+                    logger.info('Connected using SSL')
                 else:
-                    server = smtplib.SMTP(smtp_server, smtp_port)
+                    # Use regular SMTP for non-SSL connections (port 587)
+                    server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+                    logger.info('Connected using regular SMTP')
+                    
+                    # Upgrade to TLS if requested
+                    if use_tls:
+                        logger.info('Starting TLS...')
+                        server.starttls()
+                        logger.info('TLS enabled successfully')
                 
-                if use_tls:
-                    server.starttls()
-                
+                # Enhanced authentication with better error messages
                 if username and password:
+                    logger.info(f'Authenticating as: {username}')
+                    
+                    if is_gmail and not password.startswith('app-'):
+                        logger.warning('Gmail detected but password might not be an App Password. For Gmail, use App Passwords instead of regular passwords.')
+                    
                     server.login(username, password)
+                    logger.info('Authentication successful')
+                else:
+                    logger.info('No authentication credentials provided')
                 
+                # Send the message
+                logger.info(f'Sending email to: {to_email}')
                 server.send_message(msg)
                 logger.info(f'Email notification sent successfully to {to_email}')
+                
                 return True
+                
+            except smtplib.SMTPAuthenticationError as e:
+                error_msg = f'SMTP Authentication failed: {str(e)}'
+                if is_gmail:
+                    error_msg += '. For Gmail, ensure you are using an App Password, not your regular password. Enable 2-factor authentication and generate an App Password at: https://myaccount.google.com/apppasswords'
+                logger.error(error_msg)
+                return False
+                
+            except smtplib.SMTPConnectError as e:
+                error_msg = f'Failed to connect to SMTP server {smtp_server}:{smtp_port}: {str(e)}'
+                if is_gmail:
+                    error_msg += '. Verify Gmail SMTP settings: smtp.gmail.com:587 (TLS) or smtp.gmail.com:465 (SSL)'
+                logger.error(error_msg)
+                return False
+                
+            except smtplib.SMTPServerDisconnected as e:
+                error_msg = f'SMTP server disconnected unexpectedly: {str(e)}'
+                if is_gmail:
+                    error_msg += '. This often indicates authentication issues or Gmail security settings blocking the connection.'
+                logger.error(error_msg)
+                return False
+                
+            except smtplib.SMTPException as e:
+                logger.error(f'SMTP error occurred: {str(e)}')
+                return False
+                
+            except ConnectionResetError as e:
+                error_msg = f'Connection reset by server: {str(e)}'
+                if is_gmail:
+                    error_msg += '. This often happens with Gmail when using incorrect authentication or security settings.'
+                logger.error(error_msg)
+                return False
+                
+            except Exception as e:
+                logger.error(f'Unexpected error sending email: {str(e)}')
+                return False
+                
             finally:
+                # Properly close connection
                 if server:
-                    server.quit()
+                    try:
+                        server.quit()
+                        logger.info('SMTP connection closed')
+                    except Exception as e:
+                        logger.warning(f'Error closing SMTP connection: {str(e)}')
             
         except Exception as e:
-            logger.error(f'Error sending email notification: {str(e)}')
+            logger.error(f'Error in send_email_notification: {str(e)}')
             return False
     
     def send_webhook_notification(self, channel: Dict[str, Any], incident_type: str, monitor: Any, incident: Any = None):
