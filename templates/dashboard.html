@@ -4,18 +4,55 @@
 
 {% block content %}
 <div class="space-y-6">
-    <!-- Header -->
+    <!-- Header with Performance Info -->
     <div class="flex items-center justify-between">
         <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
             <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+            {% if processing_time and processing_time < 100 %}
+                <span class="text-sm font-normal text-green-600 ml-2" title="Optimized performance">⚡</span>
+            {% endif %}
         </h1>
-        <div class="text-sm text-gray-500 dark:text-gray-400">
-            Last updated: <span id="last-updated">Loading...</span>
-            <button onclick="refreshData()" class="ml-2 text-blue-600 hover:text-blue-800">
-                <i class="fas fa-sync-alt"></i>
+        <div class="text-sm text-gray-500 dark:text-gray-400 flex items-center space-x-4">
+            <div>
+                Last updated: <span id="last-updated">Loading...</span>
+                <button onclick="refreshData()" class="ml-2 text-blue-600 hover:text-blue-800" title="Refresh data">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            {% if processing_time %}
+            <div class="text-xs px-2 py-1 rounded {% if processing_time < 50 %}bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200{% elif processing_time < 200 %}bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200{% else %}bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200{% endif %}" title="Dashboard load time">
+                {{ "%.0f"|format(processing_time) }}ms
+            </div>
+            {% endif %}
+            <button onclick="clearCache()" class="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded hover:bg-blue-200 dark:hover:bg-blue-800" title="Clear cache to force fresh data">
+                <i class="fas fa-broom mr-1"></i>Clear Cache
             </button>
         </div>
     </div>
+
+    <!-- Performance Notice -->
+    {% if processing_time and processing_time > 500 %}
+    <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-800 rounded-md p-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                    Performance Notice
+                </h3>
+                <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                    <p>Dashboard loaded slowly ({{ "%.0f"|format(processing_time) }}ms). Consider:</p>
+                    <ul class="list-disc list-inside mt-1">
+                        <li>Clearing old check data periodically</li>
+                        <li>Reducing the number of monitors if possible</li>
+                        <li>Using the cache refresh button sparingly</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Stats Overview -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -142,7 +179,7 @@
                 <div class="flex-shrink-0 pl-4">
                     <div class="flex flex-wrap gap-1">
                         {% for tag in monitor.tags %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background-color: {{ tag.color }}; color: {{ get_text_color(tag.color) }};">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full text-white" style="background-color: {{ tag.color }};">
                                 {{ tag.name|upper }}
                             </span>
                         {% endfor %}
@@ -269,6 +306,41 @@
 <script>
 function refreshData() {
     location.reload();
+}
+
+// Clear cache function
+function clearCache() {
+    if (confirm('Clear dashboard cache? This will force fresh data on next load.')) {
+        fetch('/api/cache/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Show success message briefly
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check mr-1"></i>Cleared!';
+                button.disabled = true;
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                    // Refresh to show fresh data
+                    location.reload();
+                }, 1500);
+            } else {
+                alert('Failed to clear cache: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error clearing cache:', error);
+            alert('Error clearing cache. Please try again.');
+        });
+    }
 }
 
 // Auto-refresh every 30 seconds

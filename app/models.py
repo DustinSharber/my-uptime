@@ -56,6 +56,10 @@ class Monitor:
     @property
     def tags(self):
         """Get all tags associated with this monitor."""
+        # Use cached tags if available (set by optimized dashboard)
+        if hasattr(self, '_cached_tags'):
+            return self._cached_tags
+            
         monitor_tags = db.get_all('monitor_tag')
         tag_ids = [mt['tag_id'] for mt in monitor_tags if mt['monitor_id'] == self.id]
         all_tags = db.get_all('tag')
@@ -64,6 +68,10 @@ class Monitor:
     @property
     def status(self):
         """Get current status based on latest check."""
+        # Use cached status if available (set by optimized dashboard)
+        if hasattr(self, '_cached_status'):
+            return self._cached_status
+            
         checks = db.get_all('check')
         latest_check = max([c for c in checks if c['monitor_id'] == self.id], key=lambda c: c['checked_at'], default=None)
         if not latest_check:
@@ -73,6 +81,10 @@ class Monitor:
     @property
     def response_time(self):
         """Get latest response time."""
+        # Use cached response time if available (set by optimized dashboard)
+        if hasattr(self, '_cached_response_time'):
+            return self._cached_response_time
+            
         checks = db.get_all('check')
         latest_check = max([c for c in checks if c['monitor_id'] == self.id], key=lambda c: c['checked_at'], default=None)
         return latest_check['response_time'] if latest_check else None
@@ -80,6 +92,10 @@ class Monitor:
     @property
     def cert_expires_in_days(self):
         """Get latest cert_expires_in_days."""
+        # Use cached value if available (set by optimized dashboard)
+        if hasattr(self, '_cached_cert_expires_in_days'):
+            return self._cached_cert_expires_in_days
+            
         if not self.check_cert_expiry:
             return None
         checks = db.get_all('check')
@@ -89,6 +105,10 @@ class Monitor:
     @property
     def uptime_percentage(self):
         """Calculate uptime percentage for the last 7 days."""
+        # Use cached uptime percentage if available (set by optimized dashboard)
+        if hasattr(self, '_cached_uptime_percentage'):
+            return self._cached_uptime_percentage
+            
         days=7
         since = datetime.now(pytz.utc) - timedelta(days=days)
         checks = db.get_all('check')

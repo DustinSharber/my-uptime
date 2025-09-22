@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, abort, current_app, send_file
 from app.database import db
-from app.models import Monitor, MonitorCheck, Incident, NotificationChannel, Maintenance, StatusPage, User, Command, BackupConfig
+from app.models import Monitor, MonitorCheck, Incident, NotificationChannel, Maintenance, StatusPage, User, Command, BackupConfig, Tag
 from app.forms import NotificationChannelForm, CommandForm, GeneralSettingsForm, LoginForm, UserForm, ChangePasswordForm, BackupForm
 from app.utils import save_settings, load_settings, parse_timestamp
 from datetime import datetime, timedelta
@@ -97,59 +97,172 @@ def change_password():
 @main_bp.route('/')
 @conditional_login_required
 def dashboard():
-    """Main dashboard showing all monitors."""
+    """Main dashboard showing all monitors with performance optimizations."""
+    import time
+    start_time = time.time()
+    
     group_by = request.args.get('group_by')
+    
+    # Check if we should use cached data (only for GET requests)
+    use_optimized = request.method == 'GET' and not request.args.get('nocache')
+    
+    if use_optimized:
+        # Try to get cached data
+        try:
+            cached_data = getattr(current_app, '_dashboard_cache', None)
+            cache_time = getattr(current_app, '_dashboard_cache_time', 0)
+            cache_ttl = 30  # 30 seconds cache
+            
+            if cached_data and (time.time() - cache_time) < cache_ttl:
+                current_app.logger.info(f"Dashboard served from cache in {(time.time() - start_time)*1000:.1f}ms")
+                
+                # Apply grouping to cached data
+                if group_by == 'tag' and group_by != cached_data.get('group_by'):
+                    monitors = cached_data['monitors']
+                    grouped_monitors = {'Untagged': []}
+                    for monitor in monitors:
+                        if not monitor.tags:
+                            grouped_monitors['Untagged'].append(monitor)
+                        else:
+                            for tag in monitor.tags:
+                                if tag.name not in grouped_monitors:
+                                    grouped_monitors[tag.name] = []
+                                grouped_monitors[tag.name].append(monitor)
+                    cached_data['grouped_monitors'] = grouped_monitors
+                
+                cached_data['group_by'] = group_by
+                cached_data['processing_time'] = (time.time() - start_time) * 1000
+                return render_template('dashboard.html', **cached_data)
+        except Exception as e:
+            current_app.logger.warning(f"Cache error: {e}")
+    
+    # Load data with optimizations
     all_monitors_data = db.get_all('monitor')
-    monitors = [Monitor(**m) for m in all_monitors_data if m.get('is_active', True)]
-    all_tags = db.get_all('tag')
-
-    # Get all maintenance schedules
+    active_monitors_data = [m for m in all_monitors_data if m.get('is_active', True)]
+    
+    # Batch load all related data
+    all_checks_data = db.get_all('check')
+    all_incidents_data = db.get_all('incident')
     all_maintenance_data = db.get_all('maintenance')
+    all_tags_data = db.get_all('tag')
+    all_monitor_tags_data = db.get_all('monitor_tag')
+    
+    # Create lookup dictionaries for performance
+    checks_by_monitor = {}
+    for check in all_checks_data:
+        monitor_id = check['monitor_id']
+        if monitor_id not in checks_by_monitor:
+            checks_by_monitor[monitor_id] = []
+        checks_by_monitor[monitor_id].append(check)
+    
+    tag_lookup = {tag['id']: tag for tag in all_tags_data}
+    monitor_tag_lookup = {}
+    for mt in all_monitor_tags_data:
+        monitor_id = mt['monitor_id']
+        if monitor_id not in monitor_tag_lookup:
+            monitor_tag_lookup[monitor_id] = []
+        monitor_tag_lookup[monitor_id].append(mt['tag_id'])
+    
+    # Pre-compute maintenance schedules
     all_maintenance_schedules = [Maintenance(**m) for m in all_maintenance_data]
-
-    for monitor in monitors:
+    active_schedules = [s for s in all_maintenance_schedules if s.is_active]
+    
+    # Create optimized Monitor objects
+    monitors = []
+    for monitor_data in active_monitors_data:
+        monitor = Monitor(**monitor_data)
+        
+        # Optimize tag loading
+        tag_ids = monitor_tag_lookup.get(monitor.id, [])
+        monitor._cached_tags = [Tag(**tag_lookup[tag_id]) for tag_id in tag_ids if tag_id in tag_lookup]
+        
+        # Pre-compute expensive operations
+        monitor_checks = checks_by_monitor.get(monitor.id, [])
+        if monitor_checks:
+            latest_check = max(monitor_checks, key=lambda c: c['checked_at'])
+            monitor._cached_status = 'up' if latest_check['is_up'] else 'down'
+            monitor._cached_response_time = latest_check.get('response_time')
+            monitor._cached_cert_expires_in_days = latest_check.get('cert_expires_in_days')
+            
+            # Pre-compute uptime percentage
+            now = datetime.now(pytz.utc)
+            since_7d = now - timedelta(days=7)
+            recent_checks = [c for c in monitor_checks if parse_timestamp(c.get('checked_at')) >= since_7d]
+            if recent_checks:
+                up_checks = sum(1 for c in recent_checks if c['is_up'])
+                monitor._cached_uptime_percentage = (up_checks / len(recent_checks)) * 100
+            else:
+                monitor._cached_uptime_percentage = 100.0
+        else:
+            monitor._cached_status = 'unknown'
+            monitor._cached_response_time = None
+            monitor._cached_cert_expires_in_days = None
+            monitor._cached_uptime_percentage = 100.0
+        
+        # Pre-compute daily checks and maintenance status
         monitor.daily_checks = monitor.get_checks_with_maintenance(all_maintenance_schedules)
-        # Determine current maintenance status for the overall monitor badge
-        active_schedules = [s for s in all_maintenance_schedules if s.is_active]
         monitor.in_maintenance = any(monitor.id in s.monitors for s in active_schedules)
+        
+        monitors.append(monitor)
 
     # Get summary statistics
     total_monitors = len(monitors)
-    up_monitors = sum(1 for m in monitors if m.status == 'up')
-    down_monitors = sum(1 for m in monitors if m.status == 'down')
+    up_monitors = sum(1 for m in monitors if m._cached_status == 'up')
+    down_monitors = sum(1 for m in monitors if m._cached_status == 'down')
     
-    # Get recent incidents
-    all_incidents_data = db.get_all('incident')
-    all_incidents = [Incident(**i) for i in all_incidents_data]
-    
-    # Filter incidents:
-    # - Include unresolved (active) incidents
-    # - Include resolved incidents only if resolved within last 5 minutes
+    # Optimize incidents processing
     now = datetime.now(pytz.utc)
     five_minutes_ago = now - timedelta(minutes=5)
     
-    filtered_incidents = [
-        incident for incident in all_incidents
-        if not incident.is_resolved or  # Active incidents
-           (incident.is_resolved and incident.ended_at and  # Recently resolved
-            incident.ended_at.replace(tzinfo=pytz.utc) >= five_minutes_ago)
-    ]
+    recent_incidents = []
+    for incident_data in all_incidents_data:
+        try:
+            incident = Incident(**incident_data)
+            if (not incident.is_resolved or 
+                (incident.is_resolved and incident.ended_at and 
+                 incident.ended_at.replace(tzinfo=pytz.utc) >= five_minutes_ago)):
+                recent_incidents.append(incident)
+        except Exception as e:
+            current_app.logger.warning(f"Error processing incident {incident_data.get('id')}: {e}")
+            continue
     
-    # Sort by start time and get most recent 5
-    recent_incidents = sorted(filtered_incidents, key=lambda i: i.started_at, reverse=True)[:5]
+    # Sort and limit incidents
+    recent_incidents = sorted(recent_incidents, key=lambda i: i.started_at, reverse=True)[:5]
 
+    # Handle grouping
     grouped_monitors = None
     if group_by == 'tag':
         grouped_monitors = {'Untagged': []}
-        tag_map = {tag['id']: tag for tag in all_tags}
         for monitor in monitors:
-            if not monitor.tags:
+            if not monitor._cached_tags:
                 grouped_monitors['Untagged'].append(monitor)
             else:
-                for tag in monitor.tags:
+                for tag in monitor._cached_tags:
                     if tag.name not in grouped_monitors:
                         grouped_monitors[tag.name] = []
                     grouped_monitors[tag.name].append(monitor)
+    
+    processing_time = (time.time() - start_time) * 1000
+    
+    # Cache the result for future requests
+    try:
+        cache_data = {
+            'monitors': monitors,
+            'total_monitors': total_monitors,
+            'up_monitors': up_monitors,
+            'down_monitors': down_monitors,
+            'recent_incidents': recent_incidents,
+            'group_by': group_by,
+            'grouped_monitors': grouped_monitors,
+            'all_tags': all_tags_data,
+            'processing_time': processing_time
+        }
+        current_app._dashboard_cache = cache_data
+        current_app._dashboard_cache_time = time.time()
+    except Exception as e:
+        current_app.logger.warning(f"Cache storage error: {e}")
+    
+    current_app.logger.info(f"Dashboard loaded in {processing_time:.1f}ms for {total_monitors} monitors")
     
     return render_template('dashboard.html',
                          monitors=monitors,
@@ -159,7 +272,8 @@ def dashboard():
                          recent_incidents=recent_incidents,
                          group_by=group_by,
                          grouped_monitors=grouped_monitors,
-                         all_tags=all_tags)
+                         all_tags=all_tags_data,
+                         processing_time=processing_time)
 
 @main_bp.route('/monitors')
 @conditional_login_required
@@ -2795,6 +2909,71 @@ For issues or questions:
         flash(f'Error creating Linux package: {str(e)}', 'error')
         return redirect(url_for('main.settings'))
 
+@main_bp.route('/api/cache/clear', methods=['POST'])
+@conditional_login_required
+def clear_cache():
+    """API endpoint to manually clear the dashboard cache."""
+    try:
+        # Clear Flask app-level cache
+        if hasattr(current_app, '_dashboard_cache'):
+            delattr(current_app, '_dashboard_cache')
+        if hasattr(current_app, '_dashboard_cache_time'):
+            delattr(current_app, '_dashboard_cache_time')
+        
+        current_app.logger.info("Dashboard cache cleared manually")
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Cache cleared successfully'
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+@main_bp.route('/api/dashboard/metrics')
+@conditional_login_required
+def dashboard_metrics():
+    """API endpoint to get dashboard performance metrics."""
+    try:
+        import time
+        start_time = time.time()
+        
+        # Get basic stats (using cache if available)
+        cached_data = getattr(current_app, '_dashboard_cache', None)
+        cache_time = getattr(current_app, '_dashboard_cache_time', 0)
+        cache_age = time.time() - cache_time if cache_time else None
+        
+        if cached_data:
+            total_monitors = cached_data.get('total_monitors', 0)
+            is_cache_hit = True
+        else:
+            # Fallback to basic count
+            all_monitors_data = db.get_all('monitor')
+            total_monitors = len([m for m in all_monitors_data if m.get('is_active', True)])
+            is_cache_hit = False
+        
+        processing_time = (time.time() - start_time) * 1000
+        
+        return jsonify({
+            'status': 'success',
+            'metrics': {
+                'total_monitors': total_monitors,
+                'processing_time_ms': round(processing_time, 2),
+                'cache_hit': is_cache_hit,
+                'cache_age_seconds': cache_age,
+                'timestamp': datetime.now().isoformat()
+            }
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
 @main_bp.route('/settings/reset', methods=['POST'])
 @admin_required
 def reset_data():
@@ -2806,6 +2985,12 @@ def reset_data():
         db.write_data(db.model_files['history'], [])
         # Optionally, you might want to keep notification channels
         # db.write_data(db.model_files['notification_channel'], [])
+        
+        # Clear cache after reset
+        if hasattr(current_app, '_dashboard_cache'):
+            delattr(current_app, '_dashboard_cache')
+        if hasattr(current_app, '_dashboard_cache_time'):
+            delattr(current_app, '_dashboard_cache_time')
         
         flash('All application data has been reset.', 'success')
     except Exception as e:
