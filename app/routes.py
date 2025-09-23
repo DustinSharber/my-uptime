@@ -102,9 +102,10 @@ def dashboard():
     start_time = time.time()
     
     group_by = request.args.get('group_by')
+    force_refresh = request.args.get('force_refresh') == '1'
     
     # Check if we should use cached data (only for GET requests)
-    use_optimized = request.method == 'GET' and not request.args.get('nocache')
+    use_optimized = request.method == 'GET' and not request.args.get('nocache') and not force_refresh
     
     if use_optimized:
         # Try to get cached data
@@ -278,17 +279,77 @@ def dashboard():
 @main_bp.route('/monitors')
 @conditional_login_required
 def monitors():
-    """List all monitors."""
+    """List all monitors with performance optimizations."""
+    import time
+    start_time = time.time()
+    
     page = request.args.get('page', 1, type=int)
     per_page = 20
     sort_by = request.args.get('sort_by', 'name')
     sort_order = request.args.get('sort_order', 'asc')
+    force_refresh = request.args.get('force_refresh') == '1'
 
+    # Try to get cached data first
+    cache_key = f'monitors_page_{page}_{per_page}_{sort_by}_{sort_order}'
+    use_cache = request.method == 'GET' and not force_refresh
+    
+    if use_cache:
+        try:
+            cached_data = getattr(current_app, f'_monitors_cache_{cache_key}', None)
+            cache_time = getattr(current_app, f'_monitors_cache_time_{cache_key}', 0)
+            cache_ttl = 120  # 2 minutes cache
+            
+            if cached_data and (time.time() - cache_time) < cache_ttl:
+                current_app.logger.info(f"Monitors page served from cache in {(time.time() - start_time)*1000:.1f}ms")
+                cached_data['processing_time'] = (time.time() - start_time) * 1000
+                return render_template('monitors.html', **cached_data)
+        except Exception as e:
+            current_app.logger.warning(f"Monitors cache error: {e}")
+
+    # Load and optimize data
     all_monitors_data = db.get_all('monitor')
-    all_monitors = [Monitor(**m) for m in all_monitors_data]
-    all_tags = db.get_all('tag')
+    all_tags_data = db.get_all('tag')
+    all_monitor_tags_data = db.get_all('monitor_tag')
+    all_checks_data = db.get_all('check')
 
-    # Sorting logic
+    # Create optimized lookup dictionaries
+    tag_lookup = {tag['id']: tag for tag in all_tags_data}
+    monitor_tag_lookup = {}
+    for mt in all_monitor_tags_data:
+        monitor_id = mt['monitor_id']
+        if monitor_id not in monitor_tag_lookup:
+            monitor_tag_lookup[monitor_id] = []
+        monitor_tag_lookup[monitor_id].append(mt['tag_id'])
+    
+    checks_by_monitor = {}
+    for check in all_checks_data:
+        monitor_id = check['monitor_id']
+        if monitor_id not in checks_by_monitor:
+            checks_by_monitor[monitor_id] = []
+        checks_by_monitor[monitor_id].append(check)
+
+    # Create optimized Monitor objects
+    all_monitors = []
+    for monitor_data in all_monitors_data:
+        monitor = Monitor(**monitor_data)
+        
+        # Pre-compute tags
+        tag_ids = monitor_tag_lookup.get(monitor.id, [])
+        monitor._cached_tags = [Tag(**tag_lookup[tag_id]) for tag_id in tag_ids if tag_id in tag_lookup]
+        
+        # Pre-compute status and response time
+        monitor_checks = checks_by_monitor.get(monitor.id, [])
+        if monitor_checks:
+            latest_check = max(monitor_checks, key=lambda c: c['checked_at'])
+            monitor._cached_status = 'up' if latest_check['is_up'] else 'down'
+            monitor._cached_response_time = latest_check.get('response_time')
+        else:
+            monitor._cached_status = 'unknown'
+            monitor._cached_response_time = None
+        
+        all_monitors.append(monitor)
+
+    # Sorting logic with cached properties
     reverse = sort_order == 'desc'
     if sort_by == 'name':
         all_monitors.sort(key=lambda m: m.name.lower(), reverse=reverse)
@@ -296,7 +357,7 @@ def monitors():
         all_monitors.sort(key=lambda m: m.created_at or '', reverse=reverse)
     elif sort_by == 'tags':
         # Sort by the name of the first tag, if available
-        all_monitors.sort(key=lambda m: (m.tags[0].name.lower() if m.tags else ''), reverse=reverse)
+        all_monitors.sort(key=lambda m: (m._cached_tags[0].name.lower() if m._cached_tags else ''), reverse=reverse)
 
     total = len(all_monitors)
     start = (page - 1) * per_page
@@ -340,12 +401,30 @@ def monitors():
                     last = num
 
     pagination = MockPagination(paginated_monitors, page, per_page, total)
+    processing_time = (time.time() - start_time) * 1000
+    
+    # Cache the result for future requests
+    try:
+        cache_data = {
+            'monitors': pagination,
+            'sort_by': sort_by,
+            'sort_order': sort_order,
+            'all_tags': all_tags_data,
+            'processing_time': processing_time
+        }
+        setattr(current_app, f'_monitors_cache_{cache_key}', cache_data)
+        setattr(current_app, f'_monitors_cache_time_{cache_key}', time.time())
+    except Exception as e:
+        current_app.logger.warning(f"Monitors cache storage error: {e}")
+    
+    current_app.logger.info(f"Monitors page loaded in {processing_time:.1f}ms for {len(all_monitors)} monitors")
 
     return render_template('monitors.html', 
                            monitors=pagination,
                            sort_by=sort_by,
                            sort_order=sort_order,
-                           all_tags=all_tags)
+                           all_tags=all_tags_data,
+                           processing_time=processing_time)
 
 @main_bp.route('/monitors/new', methods=['GET', 'POST'])
 @admin_required

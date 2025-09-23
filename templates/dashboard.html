@@ -30,9 +30,9 @@
         </div>
     </div>
 
-    <!-- Performance Notice -->
-    {% if processing_time and processing_time > 500 %}
-    <div class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-800 rounded-md p-4">
+    <!-- Performance Notice (only show if persistent issue) -->
+    {% if processing_time and processing_time > 1000 %}
+    <div id="performance-notice" class="bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-800 rounded-md p-4">
         <div class="flex">
             <div class="flex-shrink-0">
                 <i class="fas fa-exclamation-triangle text-yellow-400"></i>
@@ -310,13 +310,24 @@ function refreshData() {
 // Clear cache function
 function clearCache() {
     if (confirm('Clear dashboard cache? This will force fresh data on next load.')) {
-        fetch('/api/cache/clear', {
+        // Use absolute URL construction to handle Docker/proxy scenarios
+        const baseUrl = window.location.origin;
+        const apiUrl = baseUrl + '/api/cache/clear';
+        
+        fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            }
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.status === 'success') {
                 // Show success message briefly
@@ -337,7 +348,8 @@ function clearCache() {
         })
         .catch(error => {
             console.error('Error clearing cache:', error);
-            alert('Error clearing cache. Please try again.');
+            console.error('API URL attempted:', apiUrl);
+            alert('Error clearing cache: ' + error.message + '. Please try again.');
         });
     }
 }
