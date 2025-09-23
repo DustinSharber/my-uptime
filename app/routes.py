@@ -357,15 +357,28 @@ def monitors():
         tag_ids = monitor_tag_lookup.get(monitor.id, [])
         monitor._cached_tags = [Tag(**tag_lookup[tag_id]) for tag_id in tag_ids if tag_id in tag_lookup]
         
-        # Pre-compute status and response time
+        # Pre-compute status and response time using cached properties (like dashboard)
         monitor_checks = checks_by_monitor.get(monitor.id, [])
         if monitor_checks:
             latest_check = max(monitor_checks, key=lambda c: c['checked_at'])
-            monitor.status = 'up' if latest_check['is_up'] else 'down'
-            monitor.response_time = latest_check.get('response_time')
+            monitor._cached_status = 'up' if latest_check['is_up'] else 'down'
+            monitor._cached_response_time = latest_check.get('response_time')
+            monitor._cached_cert_expires_in_days = latest_check.get('cert_expires_in_days')
+            
+            # Pre-compute uptime percentage for consistency
+            now = datetime.now(pytz.utc)
+            since_7d = now - timedelta(days=7)
+            recent_checks = [c for c in monitor_checks if parse_timestamp(c.get('checked_at')) >= since_7d]
+            if recent_checks:
+                up_checks = sum(1 for c in recent_checks if c['is_up'])
+                monitor._cached_uptime_percentage = (up_checks / len(recent_checks)) * 100
+            else:
+                monitor._cached_uptime_percentage = 100.0
         else:
-            monitor.status = 'unknown'
-            monitor.response_time = None
+            monitor._cached_status = 'unknown'
+            monitor._cached_response_time = None
+            monitor._cached_cert_expires_in_days = None
+            monitor._cached_uptime_percentage = 100.0
         
         all_monitors.append(monitor)
 
