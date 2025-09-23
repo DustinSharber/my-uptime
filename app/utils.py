@@ -79,6 +79,84 @@ def format_datetime_filter(value, format='%Y-%m-%d %H:%M:%S'):
         
     return value.strftime(format)
 
+def clear_application_cache():
+    """
+    Clear all application-level caches.
+    This should be called after restore operations to ensure data consistency.
+    """
+    try:
+        from flask import current_app
+        
+        cache_cleared = 0
+        
+        # Clear dashboard cache
+        if hasattr(current_app, '_dashboard_cache'):
+            delattr(current_app, '_dashboard_cache')
+            cache_cleared += 1
+            current_app.logger.debug("Dashboard cache cleared")
+            
+        if hasattr(current_app, '_dashboard_cache_time'):
+            delattr(current_app, '_dashboard_cache_time')
+            cache_cleared += 1
+            current_app.logger.debug("Dashboard cache time cleared")
+        
+        # Clear all monitors page caches
+        attrs_to_remove = []
+        for attr_name in dir(current_app):
+            if attr_name.startswith('_monitors_cache_'):
+                attrs_to_remove.append(attr_name)
+        
+        for attr_name in attrs_to_remove:
+            try:
+                delattr(current_app, attr_name)
+                cache_cleared += 1
+                current_app.logger.debug(f"Monitors cache cleared: {attr_name}")
+            except AttributeError:
+                # Attribute might have been removed by another thread
+                pass
+        
+        current_app.logger.info(f"Application cache cleared after restore - {cache_cleared} cache items removed")
+        
+        # Create cache invalidation marker for Docker environments
+        from pathlib import Path
+        cache_marker = Path('instance/cache_invalidated.marker')
+        cache_marker.parent.mkdir(exist_ok=True, parents=True)
+        with open(cache_marker, 'w') as f:
+            f.write(f"cache_cleared_at_{datetime.now().isoformat()}")
+        
+    except Exception as e:
+        # If current_app is not available (e.g., outside Flask context),
+        # we can still clear file-based caches and create the marker
+        try:
+            import shutil
+            from pathlib import Path
+            
+            cache_patterns = [
+                'instance/cache*',
+                'instance/*.cache',
+                'app_cache*'
+            ]
+            
+            for pattern in cache_patterns:
+                for path in Path('.').glob(pattern):
+                    try:
+                        if path.is_file():
+                            path.unlink()
+                        elif path.is_dir():
+                            shutil.rmtree(path)
+                    except Exception:
+                        pass
+            
+            # Create cache invalidation marker
+            cache_marker = Path('instance/cache_invalidated.marker')
+            cache_marker.parent.mkdir(exist_ok=True, parents=True)
+            with open(cache_marker, 'w') as f:
+                f.write(f"cache_cleared_at_{datetime.now().isoformat()}")
+                
+        except Exception:
+            # If all else fails, we can't clear cache but restore should still work
+            pass
+
 def perform_backup(backup_config, db_instance):
     """
     Perform a backup of the application data.
@@ -255,6 +333,9 @@ def restore_from_backup(backup_file_path, db_instance):
         # Extract the backup ZIP
         with zipfile.ZipFile(backup_file_path, 'r') as zipf:
             zipf.extractall('.')
+        
+        # CRITICAL FIX: Clear application cache after restore
+        clear_application_cache()
         
         return True, None
         

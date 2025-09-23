@@ -105,10 +105,15 @@ def dashboard():
     force_refresh = request.args.get('force_refresh') == '1'
     
     # Check if we should use cached data (only for GET requests)
-    # Don't use cache if any cache-busting parameters are present
+    # Don't use cache if any cache-busting parameters are present or if cache was recently invalidated
     cache_busting_params = ['nocache', 'force_refresh', 'cache_clear', 't']
     has_cache_busting = any(request.args.get(param) for param in cache_busting_params)
-    use_optimized = request.method == 'GET' and not has_cache_busting and not force_refresh
+    
+    # Check for cache invalidation marker (created after restore operations)
+    from pathlib import Path
+    cache_invalidated = Path('instance/cache_invalidated.marker').exists()
+    
+    use_optimized = request.method == 'GET' and not has_cache_busting and not force_refresh and not cache_invalidated
     
     if use_optimized:
         # Try to get cached data
@@ -307,11 +312,16 @@ def monitors():
     sort_order = request.args.get('sort_order', 'asc')
     force_refresh = request.args.get('force_refresh') == '1'
 
-    # Try to get cached data first - with cache busting support
+    # Try to get cached data first - with cache busting support and cache invalidation detection
     cache_busting_params = ['nocache', 'force_refresh', 'cache_clear', 't']
     has_cache_busting = any(request.args.get(param) for param in cache_busting_params)
+    
+    # Check for cache invalidation marker (created after restore operations)
+    from pathlib import Path
+    cache_invalidated = Path('instance/cache_invalidated.marker').exists()
+    
     cache_key = f'monitors_page_{page}_{per_page}_{sort_by}_{sort_order}'
-    use_cache = request.method == 'GET' and not has_cache_busting and not force_refresh
+    use_cache = request.method == 'GET' and not has_cache_busting and not force_refresh and not cache_invalidated
     
     if use_cache:
         try:
