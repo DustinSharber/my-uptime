@@ -105,7 +105,10 @@ def dashboard():
     force_refresh = request.args.get('force_refresh') == '1'
     
     # Check if we should use cached data (only for GET requests)
-    use_optimized = request.method == 'GET' and not request.args.get('nocache') and not force_refresh
+    # Don't use cache if any cache-busting parameters are present
+    cache_busting_params = ['nocache', 'force_refresh', 'cache_clear', 't']
+    has_cache_busting = any(request.args.get(param) for param in cache_busting_params)
+    use_optimized = request.method == 'GET' and not has_cache_busting and not force_refresh
     
     if use_optimized:
         # Try to get cached data
@@ -137,16 +140,31 @@ def dashboard():
         except Exception as e:
             current_app.logger.warning(f"Cache error: {e}")
     
-    # Load data with optimizations
+    # Load data with optimizations - only load what's absolutely necessary
     all_monitors_data = db.get_all('monitor')
     active_monitors_data = [m for m in all_monitors_data if m.get('is_active', True)]
     
-    # Batch load all related data
+    # Only load related data if we have active monitors
+    if not active_monitors_data:
+        return render_template('dashboard.html',
+                             monitors=[],
+                             total_monitors=0,
+                             up_monitors=0,
+                             down_monitors=0,
+                             recent_incidents=[],
+                             group_by=group_by,
+                             grouped_monitors=None,
+                             all_tags=[],
+                             processing_time=(time.time() - start_time) * 1000)
+    
+    # Batch load only necessary related data
     all_checks_data = db.get_all('check')
-    all_incidents_data = db.get_all('incident')
-    all_maintenance_data = db.get_all('maintenance')
     all_tags_data = db.get_all('tag')
     all_monitor_tags_data = db.get_all('monitor_tag')
+    
+    # Only load incidents and maintenance if needed
+    all_incidents_data = db.get_all('incident') if request.method == 'GET' else []
+    all_maintenance_data = db.get_all('maintenance')
     
     # Create lookup dictionaries for performance
     checks_by_monitor = {}
@@ -289,9 +307,11 @@ def monitors():
     sort_order = request.args.get('sort_order', 'asc')
     force_refresh = request.args.get('force_refresh') == '1'
 
-    # Try to get cached data first
+    # Try to get cached data first - with cache busting support
+    cache_busting_params = ['nocache', 'force_refresh', 'cache_clear', 't']
+    has_cache_busting = any(request.args.get(param) for param in cache_busting_params)
     cache_key = f'monitors_page_{page}_{per_page}_{sort_by}_{sort_order}'
-    use_cache = request.method == 'GET' and not force_refresh
+    use_cache = request.method == 'GET' and not has_cache_busting and not force_refresh
     
     if use_cache:
         try:
@@ -2994,6 +3014,8 @@ For issues or questions:
 def clear_cache():
     """API endpoint to manually clear the dashboard cache."""
     try:
+        current_app.logger.info("Cache clear request received")
+        
         # Clear all Flask app-level caches
         cache_cleared = 0
         
@@ -3001,32 +3023,46 @@ def clear_cache():
         if hasattr(current_app, '_dashboard_cache'):
             delattr(current_app, '_dashboard_cache')
             cache_cleared += 1
+            current_app.logger.debug("Dashboard cache cleared")
+            
         if hasattr(current_app, '_dashboard_cache_time'):
             delattr(current_app, '_dashboard_cache_time')
             cache_cleared += 1
+            current_app.logger.debug("Dashboard cache time cleared")
         
         # Clear all monitors page caches
         attrs_to_remove = []
         for attr_name in dir(current_app):
             if attr_name.startswith('_monitors_cache_'):
                 attrs_to_remove.append(attr_name)
-                cache_cleared += 1
         
         for attr_name in attrs_to_remove:
-            delattr(current_app, attr_name)
+            try:
+                delattr(current_app, attr_name)
+                cache_cleared += 1
+                current_app.logger.debug(f"Monitors cache cleared: {attr_name}")
+            except AttributeError:
+                # Attribute might have been removed by another thread
+                pass
         
         current_app.logger.info(f"Cache cleared manually - {cache_cleared} cache items removed")
         
-        return jsonify({
+        response_data = {
             'status': 'success',
-            'message': 'Cache cleared successfully'
-        })
+            'message': f'Cache cleared successfully - {cache_cleared} items removed',
+            'items_cleared': cache_cleared
+        }
+        
+        return jsonify(response_data), 200
     
     except Exception as e:
-        current_app.logger.error(f"Cache clear error: {str(e)}")
+        error_msg = f"Cache clear error: {str(e)}"
+        current_app.logger.error(error_msg, exc_info=True)
+        
         return jsonify({
             'status': 'error',
-            'error': str(e)
+            'error': str(e),
+            'message': 'Failed to clear cache due to server error'
         }), 500
 
 @main_bp.route('/api/dashboard/metrics')

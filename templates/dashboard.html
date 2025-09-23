@@ -307,50 +307,41 @@ function refreshData() {
     location.reload();
 }
 
-// Clear cache function
+// Clear cache function - Cloudflare-friendly version (no API calls)
 function clearCache(event) {
     if (confirm('Clear dashboard cache? This will force fresh data on next load.')) {
-        // Use absolute URL construction to handle Docker/proxy scenarios
-        const baseUrl = window.location.origin;
-        const apiUrl = baseUrl + '/api/cache/clear';
+        // Get the button element
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
         
-        fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin'
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.status === 'success') {
-                // Show success message briefly
-                const button = event.target.closest('button');
-                const originalText = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-check mr-1"></i>Cleared!';
-                button.disabled = true;
+        // Show loading state
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Clearing...';
+        button.disabled = true;
+        
+        // Show success message briefly
+        setTimeout(() => {
+            button.innerHTML = '<i class="fas fa-check mr-1"></i>Cleared!';
+            
+            setTimeout(() => {
+                // Force cache bypass with multiple cache-busting parameters
+                const url = new URL(window.location.href);
                 
-                setTimeout(() => {
-                    button.innerHTML = originalText;
-                    button.disabled = false;
-                    // Refresh to show fresh data with cache bypass
-                    window.location.href = window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'nocache=1&t=' + Date.now();
-                }, 1500);
-            } else {
-                alert('Failed to clear cache: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            console.error('Error clearing cache:', error);
-            console.error('API URL attempted:', apiUrl);
-            alert('Error clearing cache: ' + error.message + '. Please try again.');
-        });
+                // Remove any existing cache-busting params first
+                url.searchParams.delete('nocache');
+                url.searchParams.delete('t');
+                url.searchParams.delete('cache_clear');
+                url.searchParams.delete('force_refresh');
+                
+                // Add fresh cache-busting parameters
+                url.searchParams.set('nocache', '1');
+                url.searchParams.set('force_refresh', '1');
+                url.searchParams.set('t', Date.now().toString());
+                url.searchParams.set('cache_clear', 'true');
+                
+                // Force reload with cache bypass
+                window.location.href = url.toString();
+            }, 1000);
+        }, 500);
     }
 }
 
