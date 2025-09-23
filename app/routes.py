@@ -111,7 +111,7 @@ def dashboard():
         try:
             cached_data = getattr(current_app, '_dashboard_cache', None)
             cache_time = getattr(current_app, '_dashboard_cache_time', 0)
-            cache_ttl = 30  # 30 seconds cache
+            cache_ttl = 120  # 2 minutes cache (extended from 30 seconds)
             
             if cached_data and (time.time() - cache_time) < cache_ttl:
                 current_app.logger.info(f"Dashboard served from cache in {(time.time() - start_time)*1000:.1f}ms")
@@ -121,10 +121,10 @@ def dashboard():
                     monitors = cached_data['monitors']
                     grouped_monitors = {'Untagged': []}
                     for monitor in monitors:
-                        if not monitor.tags:
+                        if not monitor._cached_tags:
                             grouped_monitors['Untagged'].append(monitor)
                         else:
-                            for tag in monitor.tags:
+                            for tag in monitor._cached_tags:
                                 if tag.name not in grouped_monitors:
                                     grouped_monitors[tag.name] = []
                                 grouped_monitors[tag.name].append(monitor)
@@ -2909,6 +2909,7 @@ For issues or questions:
         flash(f'Error creating Linux package: {str(e)}', 'error')
         return redirect(url_for('main.settings'))
 
+
 @main_bp.route('/api/cache/clear', methods=['POST'])
 @conditional_login_required
 def clear_cache():
@@ -2928,6 +2929,7 @@ def clear_cache():
         })
     
     except Exception as e:
+        current_app.logger.error(f"Cache clear error: {str(e)}")
         return jsonify({
             'status': 'error',
             'error': str(e)
@@ -2969,6 +2971,7 @@ def dashboard_metrics():
         })
     
     except Exception as e:
+        current_app.logger.error(f"Dashboard metrics error: {str(e)}")
         return jsonify({
             'status': 'error',
             'error': str(e)
