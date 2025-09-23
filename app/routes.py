@@ -353,9 +353,9 @@ def monitors():
     for monitor_data in all_monitors_data:
         monitor = Monitor(**monitor_data)
         
-        # Pre-compute tags
+        # Pre-compute tags (use _cached_tags since tags property is read-only)
         tag_ids = monitor_tag_lookup.get(monitor.id, [])
-        monitor.tags = [Tag(**tag_lookup[tag_id]) for tag_id in tag_ids if tag_id in tag_lookup]
+        monitor._cached_tags = [Tag(**tag_lookup[tag_id]) for tag_id in tag_ids if tag_id in tag_lookup]
         
         # Pre-compute status and response time
         monitor_checks = checks_by_monitor.get(monitor.id, [])
@@ -376,8 +376,8 @@ def monitors():
     elif sort_by == 'created_at':
         all_monitors.sort(key=lambda m: m.created_at or '', reverse=reverse)
     elif sort_by == 'tags':
-        # Sort by the name of the first tag, if available
-        all_monitors.sort(key=lambda m: (m.tags[0].name.lower() if m.tags else ''), reverse=reverse)
+        # Sort by the name of the first tag, if available (use _cached_tags)
+        all_monitors.sort(key=lambda m: (m._cached_tags[0].name.lower() if m._cached_tags else ''), reverse=reverse)
 
     total = len(all_monitors)
     start = (page - 1) * per_page
