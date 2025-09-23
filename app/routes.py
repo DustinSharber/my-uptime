@@ -348,24 +348,24 @@ def monitors():
             checks_by_monitor[monitor_id] = []
         checks_by_monitor[monitor_id].append(check)
 
-    # Create optimized Monitor objects
+    # Create optimized Monitor objects - include ALL monitors, not just active ones
     all_monitors = []
     for monitor_data in all_monitors_data:
         monitor = Monitor(**monitor_data)
         
         # Pre-compute tags
         tag_ids = monitor_tag_lookup.get(monitor.id, [])
-        monitor._cached_tags = [Tag(**tag_lookup[tag_id]) for tag_id in tag_ids if tag_id in tag_lookup]
+        monitor.tags = [Tag(**tag_lookup[tag_id]) for tag_id in tag_ids if tag_id in tag_lookup]
         
         # Pre-compute status and response time
         monitor_checks = checks_by_monitor.get(monitor.id, [])
         if monitor_checks:
             latest_check = max(monitor_checks, key=lambda c: c['checked_at'])
-            monitor._cached_status = 'up' if latest_check['is_up'] else 'down'
-            monitor._cached_response_time = latest_check.get('response_time')
+            monitor.status = 'up' if latest_check['is_up'] else 'down'
+            monitor.response_time = latest_check.get('response_time')
         else:
-            monitor._cached_status = 'unknown'
-            monitor._cached_response_time = None
+            monitor.status = 'unknown'
+            monitor.response_time = None
         
         all_monitors.append(monitor)
 
@@ -377,7 +377,7 @@ def monitors():
         all_monitors.sort(key=lambda m: m.created_at or '', reverse=reverse)
     elif sort_by == 'tags':
         # Sort by the name of the first tag, if available
-        all_monitors.sort(key=lambda m: (m._cached_tags[0].name.lower() if m._cached_tags else ''), reverse=reverse)
+        all_monitors.sort(key=lambda m: (m.tags[0].name.lower() if m.tags else ''), reverse=reverse)
 
     total = len(all_monitors)
     start = (page - 1) * per_page
