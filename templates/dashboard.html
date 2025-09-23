@@ -308,7 +308,7 @@ function refreshData() {
 }
 
 // Clear cache function
-function clearCache() {
+function clearCache(event) {
     if (confirm('Clear dashboard cache? This will force fresh data on next load.')) {
         // Use absolute URL construction to handle Docker/proxy scenarios
         const baseUrl = window.location.origin;
@@ -339,8 +339,8 @@ function clearCache() {
                 setTimeout(() => {
                     button.innerHTML = originalText;
                     button.disabled = false;
-                    // Refresh to show fresh data
-                    location.reload();
+                    // Refresh to show fresh data with cache bypass
+                    window.location.href = window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'nocache=1&t=' + Date.now();
                 }, 1500);
             } else {
                 alert('Failed to clear cache: ' + (data.error || 'Unknown error'));

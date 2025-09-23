@@ -112,7 +112,7 @@ def dashboard():
         try:
             cached_data = getattr(current_app, '_dashboard_cache', None)
             cache_time = getattr(current_app, '_dashboard_cache_time', 0)
-            cache_ttl = 120  # 2 minutes cache (extended from 30 seconds)
+            cache_ttl = 600  # 10 minutes cache for better performance
             
             if cached_data and (time.time() - cache_time) < cache_ttl:
                 current_app.logger.info(f"Dashboard served from cache in {(time.time() - start_time)*1000:.1f}ms")
@@ -297,7 +297,7 @@ def monitors():
         try:
             cached_data = getattr(current_app, f'_monitors_cache_{cache_key}', None)
             cache_time = getattr(current_app, f'_monitors_cache_time_{cache_key}', 0)
-            cache_ttl = 120  # 2 minutes cache
+            cache_ttl = 600  # 10 minutes cache for better performance
             
             if cached_data and (time.time() - cache_time) < cache_ttl:
                 current_app.logger.info(f"Monitors page served from cache in {(time.time() - start_time)*1000:.1f}ms")
@@ -2994,13 +2994,28 @@ For issues or questions:
 def clear_cache():
     """API endpoint to manually clear the dashboard cache."""
     try:
-        # Clear Flask app-level cache
+        # Clear all Flask app-level caches
+        cache_cleared = 0
+        
+        # Clear dashboard cache
         if hasattr(current_app, '_dashboard_cache'):
             delattr(current_app, '_dashboard_cache')
+            cache_cleared += 1
         if hasattr(current_app, '_dashboard_cache_time'):
             delattr(current_app, '_dashboard_cache_time')
+            cache_cleared += 1
         
-        current_app.logger.info("Dashboard cache cleared manually")
+        # Clear all monitors page caches
+        attrs_to_remove = []
+        for attr_name in dir(current_app):
+            if attr_name.startswith('_monitors_cache_'):
+                attrs_to_remove.append(attr_name)
+                cache_cleared += 1
+        
+        for attr_name in attrs_to_remove:
+            delattr(current_app, attr_name)
+        
+        current_app.logger.info(f"Cache cleared manually - {cache_cleared} cache items removed")
         
         return jsonify({
             'status': 'success',
