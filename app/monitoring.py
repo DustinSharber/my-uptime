@@ -314,6 +314,13 @@ class MonitoringService:
                 monitor = Monitor(**monitor_data)
                 self.handle_incident_tracking(monitor, check_result['is_up'], check_result.get('error_message'))
             
+            # Invalidate performance cache for this monitor
+            try:
+                from app.performance import invalidate_monitor_cache
+                invalidate_monitor_cache(check_result['monitor_id'])
+            except Exception as cache_e:
+                logger.debug(f'Cache invalidation error: {cache_e}')
+            
         except Exception as e:
             logger.error(f'Error saving check result: {str(e)}')
 
@@ -493,19 +500,42 @@ class MonitoringService:
             logger.error(f'Error in send_notifications: {str(e)}')
     
     def cleanup_old_data(self):
-        """Clean up old check data and resolved incidents."""
+        """Clean up old check data and resolved incidents using the enhanced cleanup service."""
         try:
-            # Clean up checks
-            keep_history_days = self.app.config.get('KEEP_HISTORY_DAYS', 30)
-            cutoff_date_checks = datetime.now(pytz.utc) - timedelta(days=keep_history_days)
+            from .cleanup import DataCleanupService
+            
+            cleanup_service = DataCleanupService(self.app)
+            result = cleanup_service.run_full_cleanup()
+            
+            logger.info(f'Enhanced cleanup completed: {result["total_removed"]} total items removed')
+            logger.debug(f'Cleanup breakdown: {result["results"]}')
+            
+            # Show performance notice if significant cleanup occurred
+            total_removed = result.get('total_removed', 0)
+            if total_removed > 1000:
+                logger.warning(f'Large cleanup performed ({total_removed} items). Dashboard performance should improve.')
+            
+        except Exception as e:
+            logger.error(f'Error in enhanced cleanup: {str(e)}')
+            # Fallback to basic cleanup if enhanced fails
+            try:
+                self._basic_cleanup_fallback()
+            except Exception as fallback_e:
+                logger.error(f'Fallback cleanup also failed: {str(fallback_e)}')
+    
+    def _basic_cleanup_fallback(self):
+        """Basic cleanup as fallback if enhanced cleanup fails."""
+        try:
+            # Clean up checks (reduced retention to 7 days for performance)
+            cutoff_date_checks = datetime.now(pytz.utc) - timedelta(days=7)
             all_checks = db.get_all('check')
             checks_to_keep = [c for c in all_checks if parse_timestamp(c['checked_at']) >= cutoff_date_checks]
             
             if len(checks_to_keep) < len(all_checks):
                 db.write_data(db.model_files['check'], checks_to_keep)
-                logger.info(f'Cleaned up {len(all_checks) - len(checks_to_keep)} old checks')
+                logger.info(f'Basic cleanup: {len(all_checks) - len(checks_to_keep)} old checks removed')
 
-            # Clean up incidents
+            # Clean up incidents  
             cutoff_date_incidents = datetime.now(pytz.utc) - timedelta(days=90)
             all_incidents = db.get_all('incident')
             incidents_to_keep = [
@@ -515,10 +545,10 @@ class MonitoringService:
 
             if len(incidents_to_keep) < len(all_incidents):
                 db.write_data(db.model_files['incident'], incidents_to_keep)
-                logger.info(f'Cleaned up {len(all_incidents) - len(incidents_to_keep)} old incidents')
+                logger.info(f'Basic cleanup: {len(all_incidents) - len(incidents_to_keep)} old incidents removed')
 
         except Exception as e:
-            logger.error(f'Error in cleanup_old_data: {str(e)}')
+            logger.error(f'Error in basic cleanup fallback: {str(e)}')
 
 def run_monitoring_service():
     """Main function to run the monitoring service."""

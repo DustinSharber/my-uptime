@@ -152,9 +152,9 @@
                 <div class="flex-shrink-0">
                     {% if monitor.in_maintenance %}
                         <div class="w-3 h-3 bg-blue-500 rounded-full" title="In Maintenance"></div>
-                    {% elif monitor.status == 'up' %}
+                    {% elif (monitor._cached_status if monitor._cached_status is defined else monitor.status) == 'up' %}
                         <div class="w-3 h-3 bg-green-500 rounded-full"></div>
-                    {% elif monitor.status == 'down' %}
+                    {% elif (monitor._cached_status if monitor._cached_status is defined else monitor.status) == 'down' %}
                         <div class="w-3 h-3 bg-red-500 rounded-full"></div>
                     {% else %}
                         <div class="w-3 h-3 bg-gray-400 rounded-full"></div>
@@ -197,8 +197,8 @@
 
                 <!-- Response Time -->
                 <div>
-                    {% if monitor.response_time %}
-                        <span class="font-medium">{{ "%.0f"|format(monitor.response_time) }}ms</span>
+                    {% if (monitor._cached_response_time if monitor._cached_response_time is defined else monitor.response_time) %}
+                        <span class="font-medium">{{ "%.0f"|format(monitor._cached_response_time if monitor._cached_response_time is defined else monitor.response_time) }}ms</span>
                     {% else %}
                         <span>-</span>
                     {% endif %}
@@ -206,7 +206,7 @@
                 
                 <!-- Uptime -->
                 <div>
-                    <span class="font-medium">{{ "%.1f"|format(monitor.uptime_percentage) }}%</span>
+                    <span class="font-medium">{{ "%.1f"|format(monitor._cached_uptime_percentage if monitor._cached_uptime_percentage is defined else monitor.uptime_percentage) }}%</span>
                 </div>
 
                 <!-- 4-Hour Uptime Graphic -->
@@ -304,55 +304,141 @@
 
 <script>
 function refreshData() {
-    location.reload();
+    // Show loading indicator
+    const refreshButton = document.querySelector('button[onclick="refreshData()"]');
+    if (refreshButton) {
+        const originalHTML = refreshButton.innerHTML;
+        refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        refreshButton.disabled = true;
+        
+        // Force refresh with cache busting
+        const url = new URL(window.location.href);
+        url.searchParams.delete('t');
+        url.searchParams.delete('force_refresh');
+        url.searchParams.set('force_refresh', '1');
+        url.searchParams.set('t', Date.now().toString());
+        
+        window.location.href = url.toString();
+    } else {
+        // Fallback if button not found
+        const url = new URL(window.location.href);
+        url.searchParams.set('force_refresh', '1');
+        url.searchParams.set('t', Date.now().toString());
+        window.location.href = url.toString();
+    }
 }
 
-// Clear cache function - Cloudflare-friendly version (no API calls)
+// Clear cache function - Enhanced for performance system
 function clearCache(event) {
     if (confirm('Clear dashboard cache? This will force fresh data on next load.')) {
         // Get the button element
-        const button = event.target.closest('button');
-        const originalText = button.innerHTML;
+        const button = event ? event.target.closest('button') : null;
         
-        // Show loading state
-        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Clearing...';
-        button.disabled = true;
-        
-        // Show success message briefly
-        setTimeout(() => {
-            button.innerHTML = '<i class="fas fa-check mr-1"></i>Cleared!';
+        if (button) {
+            const originalText = button.innerHTML;
             
+            // Show loading state
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Clearing...';
+            button.disabled = true;
+        }
+        
+        // Try to call the cache clear API first
+        fetch('/api/cache/clear', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (button) {
+                if (data.status === 'success') {
+                    button.innerHTML = '<i class="fas fa-check mr-1"></i>Cleared!';
+                    
+                    setTimeout(() => {
+                        // Force reload with comprehensive cache busting
+                        const url = new URL(window.location.href);
+                        
+                        // Remove any existing cache-busting params first
+                        url.searchParams.delete('nocache');
+                        url.searchParams.delete('t');
+                        url.searchParams.delete('cache_clear');
+                        url.searchParams.delete('force_refresh');
+                        
+                        // Add fresh cache-busting parameters
+                        url.searchParams.set('nocache', '1');
+                        url.searchParams.set('force_refresh', '1');
+                        url.searchParams.set('t', Date.now().toString());
+                        url.searchParams.set('cache_clear', 'true');
+                        
+                        // Force reload with cache bypass
+                        window.location.href = url.toString();
+                    }, 1000);
+                } else {
+                    button.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i>Error';
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                    }, 2000);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Cache clear API failed:', error);
+            
+            if (button) {
+                button.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i>Fallback';
+            }
+            
+            // Fallback: Force reload with cache busting anyway
             setTimeout(() => {
-                // Force cache bypass with multiple cache-busting parameters
                 const url = new URL(window.location.href);
-                
-                // Remove any existing cache-busting params first
-                url.searchParams.delete('nocache');
-                url.searchParams.delete('t');
-                url.searchParams.delete('cache_clear');
-                url.searchParams.delete('force_refresh');
-                
-                // Add fresh cache-busting parameters
                 url.searchParams.set('nocache', '1');
                 url.searchParams.set('force_refresh', '1');
                 url.searchParams.set('t', Date.now().toString());
                 url.searchParams.set('cache_clear', 'true');
-                
-                // Force reload with cache bypass
                 window.location.href = url.toString();
             }, 1000);
-        }, 500);
+        });
     }
 }
 
-// Auto-refresh every 30 seconds
-setInterval(refreshData, 30000);
+// Auto-refresh every 60 seconds (reduced frequency for performance)
+let autoRefreshInterval = setInterval(refreshData, 60000);
+
+// Pause auto-refresh when user is interacting with the page
+let userActiveTimeout;
+document.addEventListener('mousemove', () => {
+    clearTimeout(userActiveTimeout);
+    userActiveTimeout = setTimeout(() => {
+        // User has been inactive, resume auto-refresh
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        autoRefreshInterval = setInterval(refreshData, 60000);
+    }, 5000); // Wait 5 seconds of inactivity before resuming auto-refresh
+});
 
 // Update timestamp
 function updateTimestamp() {
-    document.getElementById('last-updated').textContent = new Date().toLocaleString();
+    const element = document.getElementById('last-updated');
+    if (element) {
+        element.textContent = new Date().toLocaleString();
+    }
 }
 updateTimestamp();
+
+// Performance monitoring
+let loadStartTime = Date.now();
+window.addEventListener('load', function() {
+    const loadTime = Date.now() - loadStartTime;
+    console.log(`Dashboard loaded in ${loadTime}ms`);
+    
+    // Show performance indicator
+    if (loadTime > 2000) {
+        console.warn('Dashboard loading slowly. Consider clearing cache or checking server performance.');
+    }
+});
 </script>
 
 {% endblock %}

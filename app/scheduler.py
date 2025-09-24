@@ -4,6 +4,9 @@ from app.database import db
 from app.models import Command, BackupConfig
 from app.utils import perform_backup
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 def queue_command(command_id):
     """Queue a command for execution."""
@@ -49,6 +52,26 @@ def execute_backup(backup_config_id):
     else:
         print(f"Backup '{backup_config.name}' failed: {error_message}")
 
+def execute_data_cleanup():
+    """Execute automatic data cleanup for performance optimization."""
+    try:
+        from app.cleanup import DataCleanupService
+        
+        logger.info("Starting scheduled data cleanup...")
+        cleanup_service = DataCleanupService()
+        result = cleanup_service.run_full_cleanup()
+        
+        total_removed = result.get('total_removed', 0)
+        if total_removed > 0:
+            logger.info(f"Scheduled cleanup completed: {total_removed} items removed")
+            print(f"Data cleanup completed: {total_removed} old records removed for better performance")
+        else:
+            logger.debug("Scheduled cleanup completed: no old data to remove")
+            
+    except Exception as e:
+        logger.error(f"Error during scheduled cleanup: {str(e)}")
+        print(f"Data cleanup failed: {str(e)}")
+
 def init_scheduler():
     """Initializes and starts the scheduler."""
     scheduler = BackgroundScheduler()
@@ -90,5 +113,20 @@ def init_scheduler():
                     print(f"Scheduled backup '{backup_config.name}' with schedule: {cron_expression}")
                 except Exception as e:
                     print(f"Failed to schedule backup '{backup_config.name}': {e}")
+    
+    # Schedule automatic data cleanup for performance optimization
+    # Run daily at 3 AM to clean up old monitoring data
+    try:
+        scheduler.add_job(
+            func=execute_data_cleanup,
+            trigger=CronTrigger.from_crontab('0 3 * * *'),  # Daily at 3:00 AM
+            id='auto_data_cleanup',
+            replace_existing=True
+        )
+        print("Scheduled automatic data cleanup: daily at 3:00 AM")
+        logger.info("Automatic data cleanup scheduled for daily execution at 3:00 AM")
+    except Exception as e:
+        print(f"Failed to schedule automatic cleanup: {e}")
+        logger.error(f"Failed to schedule automatic cleanup: {e}")
     
     return scheduler

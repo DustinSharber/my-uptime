@@ -97,53 +97,72 @@ def change_password():
 @main_bp.route('/')
 @conditional_login_required
 def dashboard():
-    """Main dashboard showing all monitors with performance optimizations."""
+    """Main dashboard with high-performance data indexing - keeps all data."""
     import time
     start_time = time.time()
     
     group_by = request.args.get('group_by')
     force_refresh = request.args.get('force_refresh') == '1'
     
-    # Check if we should use cached data (only for GET requests)
-    # Don't use cache if any cache-busting parameters are present or if cache was recently invalidated
-    cache_busting_params = ['nocache', 'force_refresh', 'cache_clear', 't']
-    has_cache_busting = any(request.args.get(param) for param in cache_busting_params)
+    # Use the new performance optimization system
+    from app.performance import get_optimized_dashboard_data
     
-    # Check for cache invalidation marker (created after restore operations)
-    from pathlib import Path
-    cache_invalidated = Path('instance/cache_invalidated.marker').exists()
-    
-    use_optimized = request.method == 'GET' and not has_cache_busting and not force_refresh and not cache_invalidated
-    
-    if use_optimized:
-        # Try to get cached data
-        try:
-            cached_data = getattr(current_app, '_dashboard_cache', None)
-            cache_time = getattr(current_app, '_dashboard_cache_time', 0)
-            cache_ttl = 600  # 10 minutes cache for better performance
+    try:
+        # Get pre-computed dashboard data
+        dashboard_data = get_optimized_dashboard_data(force_refresh=force_refresh)
+        
+        # Convert to format expected by template
+        monitors = []
+        from app.models import Monitor, Tag
+        
+        for monitor_summary in dashboard_data['active_monitors']:
+            # Create Monitor object with cached data
+            monitor = Monitor(**monitor_summary['_raw_data'])
             
-            if cached_data and (time.time() - cache_time) < cache_ttl:
-                current_app.logger.info(f"Dashboard served from cache in {(time.time() - start_time)*1000:.1f}ms")
-                
-                # Apply grouping to cached data
-                if group_by == 'tag' and group_by != cached_data.get('group_by'):
-                    monitors = cached_data['monitors']
-                    grouped_monitors = {'Untagged': []}
-                    for monitor in monitors:
-                        if not monitor._cached_tags:
-                            grouped_monitors['Untagged'].append(monitor)
-                        else:
-                            for tag in monitor._cached_tags:
-                                if tag.name not in grouped_monitors:
-                                    grouped_monitors[tag.name] = []
-                                grouped_monitors[tag.name].append(monitor)
-                    cached_data['grouped_monitors'] = grouped_monitors
-                
-                cached_data['group_by'] = group_by
-                cached_data['processing_time'] = (time.time() - start_time) * 1000
-                return render_template('dashboard.html', **cached_data)
-        except Exception as e:
-            current_app.logger.warning(f"Cache error: {e}")
+            # Set cached properties for fast access
+            monitor._cached_status = monitor_summary['status']
+            monitor._cached_response_time = monitor_summary['response_time']
+            monitor._cached_cert_expires_in_days = monitor_summary['cert_expires_in_days']
+            monitor._cached_uptime_percentage = monitor_summary['uptime_7d']
+            monitor._cached_tags = [Tag(**tag_data) for tag_data in monitor_summary['tags']]
+            
+            monitors.append(monitor)
+        
+        # Handle grouping efficiently
+        grouped_monitors = None
+        if group_by == 'tag':
+            grouped_monitors = {'Untagged': []}
+            for monitor in monitors:
+                if not monitor._cached_tags:
+                    grouped_monitors['Untagged'].append(monitor)
+                else:
+                    for tag in monitor._cached_tags:
+                        if tag.name not in grouped_monitors:
+                            grouped_monitors[tag.name] = []
+                        grouped_monitors[tag.name].append(monitor)
+        
+        processing_time = (time.time() - start_time) * 1000
+        
+        # Get all tags for UI
+        all_tags_data = db.get_all('tag')
+        
+        current_app.logger.info(f"Fast dashboard loaded in {processing_time:.1f}ms for {len(monitors)} monitors using performance indexing")
+        
+        return render_template('dashboard.html',
+                             monitors=monitors,
+                             total_monitors=dashboard_data['total_monitors'],
+                             up_monitors=dashboard_data['up_monitors'],
+                             down_monitors=dashboard_data['down_monitors'],
+                             recent_incidents=dashboard_data['recent_incidents'],
+                             group_by=group_by,
+                             grouped_monitors=grouped_monitors,
+                             all_tags=all_tags_data,
+                             processing_time=processing_time)
+        
+    except Exception as e:
+        current_app.logger.error(f"Performance system error: {e}")
+        # Fallback to simple approach if performance system fails
+        flash('Using fallback mode for dashboard. Performance system encountered an error.', 'warning')
     
     # Load data with optimizations - only load what's absolutely necessary
     all_monitors_data = db.get_all('monitor')
@@ -1873,21 +1892,98 @@ def delete_tag(tag_id):
 @main_bp.route('/settings/cleanup', methods=['POST'])
 @admin_required
 def cleanup_data():
-    """Manually trigger a cleanup of old history data."""
+    """Manually trigger comprehensive data cleanup."""
     try:
-        history = db.read_data(db.model_files['history'])
-        # Assuming a 7-day retention period for manual cleanup
-        cutoff = datetime.utcnow() - timedelta(days=7)
+        from app.cleanup import DataCleanupService
         
-        original_count = len(history)
-        history_to_keep = [h for h in history if datetime.fromisoformat(h['checked_at']) >= cutoff]
-        cleaned_count = original_count - len(history_to_keep)
+        cleanup_service = DataCleanupService(current_app)
+        result = cleanup_service.run_full_cleanup()
         
-        db.write_data(db.model_files['history'], history_to_keep)
+        total_removed = result.get('total_removed', 0)
+        results = result.get('results', {})
         
-        flash(f'Successfully cleaned up {cleaned_count} old history records.', 'success')
+        if total_removed > 0:
+            # Build detailed message
+            details = []
+            for data_type, count in results.items():
+                if count > 0:
+                    details.append(f'{count} {data_type}')
+            
+            detail_msg = ', '.join(details) if details else 'various data'
+            flash(f'Successfully cleaned up {total_removed} old records ({detail_msg}). Dashboard performance should improve!', 'success')
+            
+            # Clear dashboard cache to show immediate improvements
+            if hasattr(current_app, '_dashboard_cache'):
+                delattr(current_app, '_dashboard_cache')
+            if hasattr(current_app, '_dashboard_cache_time'):
+                delattr(current_app, '_dashboard_cache_time')
+        else:
+            flash('No old data found to clean up. Your database is already optimized!', 'info')
+            
     except Exception as e:
+        current_app.logger.error(f'Manual cleanup error: {str(e)}')
         flash(f'Error during cleanup: {str(e)}', 'error')
+        
+    return redirect(url_for('main.settings'))
+
+@main_bp.route('/settings/data-stats', methods=['GET'])
+@admin_required
+def data_statistics():
+    """Get current data statistics for display."""
+    try:
+        from app.cleanup import DataCleanupService
+        
+        cleanup_service = DataCleanupService(current_app)
+        stats = cleanup_service.get_data_statistics()
+        
+        return jsonify({
+            'status': 'success',
+            'statistics': stats
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Data statistics error: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+@main_bp.route('/settings/cleanup-aggressive', methods=['POST'])
+@admin_required
+def aggressive_cleanup():
+    """Aggressive cleanup with very short retention periods for performance recovery."""
+    try:
+        from app.cleanup import DataCleanupService
+        
+        # Create cleanup service with aggressive settings
+        cleanup_service = DataCleanupService(current_app)
+        
+        # Override config for aggressive cleanup
+        cleanup_service.default_config = {
+            'CHECKS_RETENTION_DAYS': 3,      # Only keep 3 days of checks
+            'HISTORY_RETENTION_DAYS': 7,     # Only 7 days of history
+            'INCIDENTS_RETENTION_DAYS': 30,  # Only 30 days of incidents
+            'AGENT_METRICS_RETENTION_DAYS': 3,  # Only 3 days of metrics
+            'AGENT_LOGS_RETENTION_DAYS': 2,  # Only 2 days of logs
+            'PENDING_COMMANDS_RETENTION_DAYS': 7,  # Only 7 days of commands
+        }
+        
+        result = cleanup_service.run_full_cleanup()
+        
+        total_removed = result.get('total_removed', 0)
+        flash(f'Aggressive cleanup completed! Removed {total_removed} records. This should significantly improve dashboard performance.', 'success')
+        
+        # Clear all caches
+        attrs_to_remove = [attr for attr in dir(current_app) if attr.startswith('_dashboard_cache') or attr.startswith('_monitors_cache')]
+        for attr in attrs_to_remove:
+            try:
+                delattr(current_app, attr)
+            except AttributeError:
+                pass
+                
+    except Exception as e:
+        current_app.logger.error(f'Aggressive cleanup error: {str(e)}')
+        flash(f'Error during aggressive cleanup: {str(e)}', 'error')
         
     return redirect(url_for('main.settings'))
 
